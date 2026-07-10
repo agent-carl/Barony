@@ -31,8 +31,6 @@ static const float DREAD_FALL_BRIGHT = 5.f;   // dread loss per second in bright
 static const float DREAD_MAX = 100.f;
 static const int DREAD_DAMAGE = 2;            // psychic damage at the highest stage
 static const int DREAD_DAMAGE_PERIOD = 3;     // seconds between damage ticks
-static const float DREAD_COMPANION_FACTOR = 0.75f; // rise multiplier with the companion nearby
-static const real_t DREAD_COMPANION_RANGE = 8 * 16.0; // "nearby" = within 8 tiles
 static const float DREAD_CURSED_ITEM_RISE = 0.4f; // extra rise per equipped cursed item
 static const float DREAD_LIGHT_CIRCLE_FALL = 2.f; // extra fall near a brightly lit ally
 static const real_t DREAD_LIGHT_CIRCLE_RANGE = 4 * 16.0; // "near" = within 4 tiles
@@ -71,40 +69,6 @@ static bool scarred[MAXPLAYERS] = { false };
 // for the rest of the run.
 static const float DREAD_GRIEF_FACTOR = 1.25f;
 static bool grieving[MAXPLAYERS] = { false };
-
-// A living companion close by steadies the nerves: dread rises slower.
-static bool companionIsNear(int player)
-{
-	if ( !stats[player] || !players[player] || !players[player]->entity )
-	{
-		return false;
-	}
-	for ( node_t* node = stats[player]->FOLLOWERS.first; node != nullptr; node = node->next )
-	{
-		Uint32* uid = (Uint32*)node->element;
-		Entity* follower = uid ? uidToEntity(*uid) : nullptr;
-		if ( !follower )
-		{
-			continue;
-		}
-		Stat* followerStats = follower->getStats();
-		if ( !followerStats || followerStats->HP <= 0 )
-		{
-			continue;
-		}
-		if ( followerStats->getAttribute(COMPANION_ATTRIBUTE) == "" )
-		{
-			continue;
-		}
-		const real_t dx = follower->x - players[player]->entity->x;
-		const real_t dy = follower->y - players[player]->entity->y;
-		if ( dx * dx + dy * dy <= DREAD_COMPANION_RANGE * DREAD_COMPANION_RANGE )
-		{
-			return true;
-		}
-	}
-	return false;
-}
 
 // Cursed equipment feeds the dark: each equipped item with negative
 // beatitude speeds up dread growth.
@@ -226,7 +190,7 @@ void dreadOnCompanionDeath(int player)
 		return;
 	}
 	grieving[player] = true;
-	messagePlayer(player, MESSAGE_STATUS, "Albert is gone. The dark feels heavier now.");
+	messagePlayer(player, MESSAGE_STATUS, "Your companion is gone. The dark feels heavier now.");
 }
 
 void dreadOnMapLoad()
@@ -325,10 +289,7 @@ void dreadUpdate()
 		{
 			float rise = DREAD_RISE_PER_SEC + DREAD_RISE_PER_5_FLOORS * (currentlevel / 5);
 			rise += DREAD_CURSED_ITEM_RISE * cursedEquipmentCount(i);
-			if ( companionIsNear(i) )
-			{
-				rise *= DREAD_COMPANION_FACTOR;
-			}
+			rise *= companionDreadRiseFactor(i); // 1.0 without a companion nearby
 			if ( scarred[i] )
 			{
 				rise *= DREAD_SCAR_FACTOR;

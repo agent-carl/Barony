@@ -16,6 +16,16 @@
 // transitions along with the rest of the follower's stats).
 #define COMPANION_ATTRIBUTE "UMBRA_COMPANION"
 
+// Stat attribute key holding the companion's archetype:
+// "soldier" | "medic" | "occultist". Picked to complement the player's
+// class at spawn (fighters get a medic, casters get a soldier, everyone
+// else gets an occultist).
+#define COMPANION_ROLE_ATTRIBUTE "UMBRA_ROLE"
+
+// Dread-rise multiplier granted by a living companion within aura range:
+// 1.0 when absent; role-dependent (occultist steadies nerves best).
+float companionDreadRiseFactor(int player);
+
 // Called at the end of assignActions() after players are placed on the map.
 // Spawns the companion next to player 0 on a fresh singleplayer run:
 // no-op for clients, multiplayer games, splitscreen, savegame loads,

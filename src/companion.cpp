@@ -21,7 +21,73 @@
 #include "dread.hpp"
 #include "companion.hpp"
 
-static const char* COMPANION_NAME = "Albert";
+// Archetypes (idea #12): the retainer is picked to complement the
+// player's class - martial classes get a medic, casters get a soldier,
+// everyone else gets an occultist.
+enum CompanionRole : int
+{
+	COMPANION_SOLDIER,
+	COMPANION_MEDIC,
+	COMPANION_OCCULTIST,
+};
+
+struct CompanionRoleDef
+{
+	const char* key;        // stored in COMPANION_ROLE_ATTRIBUTE
+	const char* name;
+	float dreadRiseFactor;  // aura strength (lower = calmer)
+};
+
+static const CompanionRoleDef COMPANION_ROLES[] = {
+	{ "soldier",   "Sergeant Briggs", 0.85f },
+	{ "medic",     "Doctor Rosalind", 0.75f },
+	{ "occultist", "Mordecai",        0.60f },
+};
+
+static const real_t COMPANION_AURA_RANGE = 8 * 16.0; // 8 tiles
+
+static CompanionRole companionRoleForPlayerClass(int playerClass)
+{
+	switch ( playerClass )
+	{
+		case CLASS_WIZARD:
+		case CLASS_ARCANIST:
+		case CLASS_CONJURER:
+		case CLASS_ACCURSED:
+		case CLASS_MESMER:
+		case CLASS_SHAMAN:
+			return COMPANION_SOLDIER; // casters lack a frontline
+		case CLASS_BARBARIAN:
+		case CLASS_WARRIOR:
+		case CLASS_ROGUE:
+		case CLASS_NINJA:
+		case CLASS_MONK:
+		case CLASS_PUNISHER:
+		case CLASS_HUNTER:
+		case CLASS_SAPPER:
+		case CLASS_MACHINIST:
+			return COMPANION_MEDIC; // fighters lack healing
+		default:
+			return COMPANION_OCCULTIST; // everyone else gets steadier nerves
+	}
+}
+
+static const CompanionRoleDef* companionRoleFromStats(Stat* companionStats)
+{
+	if ( !companionStats )
+	{
+		return nullptr;
+	}
+	const std::string role = companionStats->getAttribute(COMPANION_ROLE_ATTRIBUTE);
+	for ( const auto& def : COMPANION_ROLES )
+	{
+		if ( role == def.key )
+		{
+			return &def;
+		}
+	}
+	return nullptr;
+}
 
 void companionSpawnAtGameStart()
 {
@@ -68,13 +134,32 @@ void companionSpawnAtGameStart()
 		return;
 	}
 
-	strcpy(companionStats->name, COMPANION_NAME);
+	const CompanionRole role = companionRoleForPlayerClass(client_classes[0]);
+	const CompanionRoleDef& roleDef = COMPANION_ROLES[role];
+	strcpy(companionStats->name, roleDef.name);
 	companionStats->setAttribute(COMPANION_ATTRIBUTE, "1");
+	companionStats->setAttribute(COMPANION_ROLE_ATTRIBUTE, roleDef.key);
+	switch ( role )
+	{
+		case COMPANION_SOLDIER: // a proper frontline
+			companionStats->STR += 3;
+			companionStats->CON += 2;
+			companionStats->MAXHP += 30;
+			companionStats->HP = companionStats->MAXHP;
+			break;
+		case COMPANION_MEDIC:
+			companionStats->INT += 2;
+			break;
+		case COMPANION_OCCULTIST:
+			companionStats->INT += 3;
+			break;
+	}
 
-	// the lantern-bearer: Albert carries a dependable light so a solo player
-	// keeps both hands free. initHuman only rolls random gear for empty
-	// slots, so this pre-set lantern survives his first AI tick. Carried
-	// lights burn down for players only - his lamp is the reliable one.
+	// the lantern-bearer: the companion carries a dependable light so a
+	// solo player keeps both hands free. initHuman only rolls random gear
+	// for empty slots, so this pre-set lantern survives his first AI tick.
+	// Carried lights burn down for players only - this lamp is the
+	// reliable one.
 	if ( !companionStats->shield )
 	{
 		companionStats->shield = newItem(TOOL_LANTERN, EXCELLENT, 0, 1, 0, true, nullptr);
@@ -88,9 +173,9 @@ void companionSpawnAtGameStart()
 	}
 	companion->monsterAllyPickupItems = 0; // don't hoover the floor by default
 
-	messagePlayer(0, MESSAGE_HINT, "%s joins you. Interact with him to give orders.",
-		COMPANION_NAME);
-	printlog("[companion] %s spawned as follower of player 0", COMPANION_NAME);
+	messagePlayer(0, MESSAGE_HINT, "%s joins you. Interact with them to give orders.",
+		roleDef.name);
+	printlog("[companion] %s (%s) spawned as follower of player 0", roleDef.name, roleDef.key);
 }
 
 // --- Barks -------------------------------------------------------------------
@@ -113,6 +198,13 @@ static bool barkedDread[MAXPLAYERS] = { false };
 static bool hadCompanion[MAXPLAYERS] = { false };
 static int companionMissingSeconds[MAXPLAYERS] = { 0 };
 static const int COMPANION_DEATH_CONFIRM_SECONDS = 3;
+
+// role ability cooldowns
+static const int MEDIC_HEAL_COOLDOWN = 45;   // seconds
+static const int MEDIC_HEAL_AMOUNT = 8;
+static const int OCCULTIST_MANA_PERIOD = 10; // seconds
+static int medicHealCooldown[MAXPLAYERS] = { 0 };
+static int occultistManaCountdown[MAXPLAYERS] = { 0 };
 
 void companionOnMapLoad()
 {
@@ -153,9 +245,36 @@ static Entity* companionForPlayer(int player)
 	return nullptr;
 }
 
-static void bark(int player, const char* line)
+static void bark(int player, Stat* companionStats, const char* line)
 {
-	messagePlayer(player, MESSAGE_WORLD, "%s: \"%s\"", COMPANION_NAME, line);
+	messagePlayer(player, MESSAGE_WORLD, "%s: \"%s\"",
+		companionStats ? companionStats->name : "Companion", line);
+}
+
+static bool companionIsNearPlayer(int player, Entity* companion)
+{
+	if ( !companion || !players[player] || !players[player]->entity )
+	{
+		return false;
+	}
+	const real_t dx = companion->x - players[player]->entity->x;
+	const real_t dy = companion->y - players[player]->entity->y;
+	return dx * dx + dy * dy <= COMPANION_AURA_RANGE * COMPANION_AURA_RANGE;
+}
+
+float companionDreadRiseFactor(int player)
+{
+	if ( player < 0 || player >= MAXPLAYERS )
+	{
+		return 1.f;
+	}
+	Entity* companion = companionForPlayer(player);
+	if ( !companion || !companionIsNearPlayer(player, companion) )
+	{
+		return 1.f;
+	}
+	const CompanionRoleDef* def = companionRoleFromStats(companion->getStats());
+	return def ? def->dreadRiseFactor : 0.75f;
 }
 
 void companionUpdate()
@@ -209,13 +328,44 @@ void companionUpdate()
 		hadCompanion[i] = true;
 		companionMissingSeconds[i] = 0;
 		Stat* companionStats = companion->getStats();
+		const CompanionRoleDef* roleDef = companionRoleFromStats(companionStats);
+		const bool near = companionIsNearPlayer(i, companion);
+
+		// role abilities
+		if ( medicHealCooldown[i] > 0 )
+		{
+			--medicHealCooldown[i];
+		}
+		if ( roleDef && near )
+		{
+			if ( roleDef->key[0] == 'm' ) // medic
+			{
+				if ( medicHealCooldown[i] <= 0 && stats[i]->HP < stats[i]->MAXHP / 2 )
+				{
+					medicHealCooldown[i] = MEDIC_HEAL_COOLDOWN;
+					players[i]->entity->modHP(MEDIC_HEAL_AMOUNT);
+					bark(i, companionStats, "Hold still, sir. This will sting.");
+				}
+			}
+			else if ( roleDef->key[0] == 'o' ) // occultist
+			{
+				if ( --occultistManaCountdown[i] <= 0 )
+				{
+					occultistManaCountdown[i] = OCCULTIST_MANA_PERIOD;
+					if ( stats[i]->MP < stats[i]->MAXMP )
+					{
+						players[i]->entity->modMP(1);
+					}
+				}
+			}
+		}
 
 		// his own wounds come first
 		if ( companionStats && companionStats->HP < companionStats->MAXHP / 3
 			&& barkWoundedCooldown[i] <= 0 )
 		{
 			barkWoundedCooldown[i] = BARK_WOUNDED_COOLDOWN;
-			bark(i, "I'm... I'm hurt, sir. Don't leave me behind.");
+			bark(i, companionStats, "I'm... I'm hurt, sir. Don't leave me behind.");
 			continue;
 		}
 
@@ -225,7 +375,7 @@ void companionUpdate()
 			if ( !barkedDread[i] )
 			{
 				barkedDread[i] = true;
-				bark(i, "Your hands are shaking, sir. We should find a lamp.");
+				bark(i, companionStats, "Your hands are shaking, sir. We should find a lamp.");
 				continue;
 			}
 		}
@@ -239,7 +389,7 @@ void companionUpdate()
 			&& barkDarknessCooldown[i] <= 0 )
 		{
 			barkDarknessCooldown[i] = BARK_DARKNESS_COOLDOWN;
-			bark(i, "Stay close, sir. And mind the dark.");
+			bark(i, companionStats, "Stay close, sir. And mind the dark.");
 		}
 	}
 }
