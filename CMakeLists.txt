@@ -497,7 +497,7 @@ message("***************************")
 
 add_subdirectory(src)
 if( WIN32 )
-	set(GAME_RESOURCE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/barony.rc")
+	set(GAME_RESOURCE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/umbra.rc")
 	set(EDITOR_RESOURCE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/editor.rc")
 endif()
 
@@ -536,6 +536,9 @@ else()
 endif(APPLE)
 
 if (GAME_ENABLED)
+  # Project Umbra: the CMake target keeps its historical name (dozens of
+  # references), but the shipped binary is named after the fork.
+  set_target_properties(barony PROPERTIES OUTPUT_NAME "umbra")
   if(WIN32)
     # Only for MinGW...
 	# target_link_libraries(barony -lmingw32)

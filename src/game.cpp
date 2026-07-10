@@ -7202,11 +7202,11 @@ int main(int argc, char** argv)
   #ifdef USE_EOS
    #ifdef STEAMWORKS
 		//Steam + EOS
-		snprintf(outputdir, sizeof(outputdir), "%s/.barony", basepath);
+		snprintf(outputdir, sizeof(outputdir), "%s/." GAME_SHORT_NAME, basepath);
    #else
 		//Just EOS.
 		std::string firstDotdir(basepath);
-		firstDotdir += "/.barony/";
+		firstDotdir += "/." GAME_SHORT_NAME "/";
 		if (access(firstDotdir.c_str(), F_OK) == -1)
 		{
 			mkdir(firstDotdir.c_str(), 0777); //Since this mkdir is not equivalent to mkdir -p, have to create each part of the path manually.
@@ -7215,7 +7215,7 @@ int main(int argc, char** argv)
    #endif
   #else //USE_EOS
 		//No EOS. Could be Steam though. Or could also not.
-		snprintf(outputdir, sizeof(outputdir), "%s/.barony", basepath);
+		snprintf(outputdir, sizeof(outputdir), "%s/." GAME_SHORT_NAME, basepath);
   #endif
 		if (access(outputdir, F_OK) == -1)
 		{

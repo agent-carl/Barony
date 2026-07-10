@@ -1,0 +1,52 @@
+# Project Umbra CI: clean open-source build — OpenAL audio, no FMOD,
+# no Steamworks, no EOS, no PlayFab, no encrypted dependency bundles.
+name: Umbra-Linux-CI
+
+on:
+  push:
+    branches: [ master, develop, 'claude/**' ]
+  pull_request:
+    branches: [ master, develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Update apt repository
+      run: sudo apt-get update
+
+    - name: Install build dependencies
+      run: >
+        sudo apt-get install -y
+        libsdl2-dev libsdl2-image-dev libsdl2-net-dev libsdl2-ttf-dev
+        libpng-dev libz-dev libphysfs-dev rapidjson-dev
+        libgl1-mesa-dev libglu1-mesa-dev
+        libopenal-dev libvorbis-dev libogg-dev
+
+    - name: Configure
+      run: >
+        cmake -B build -S .
+        -DCMAKE_BUILD_TYPE=Release
+        -DFMOD_ENABLED=OFF
+        -DOPENAL_ENABLED=ON
+        -DSTEAMWORKS_ENABLED=0
+        -DEOS_ENABLED=0
+        -DPLAYFAB_ENABLED=0
+
+    - name: Build
+      run: cmake --build build -j"$(nproc)"
+
+    - name: Upload game artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: umbra-linux
+        path: build/umbra
+
+    - name: Upload editor artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: umbra-editor-linux
+        path: build/editor

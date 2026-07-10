@@ -10,6 +10,7 @@
 -------------------------------------------------------------------------------*/
 
 #include "main.hpp"
+#include "identity.hpp"
 #include "draw.hpp"
 #include "editor.hpp"
 #include "entity.hpp"
@@ -1618,7 +1619,7 @@ int main(int argc, char** argv)
 	strcpy(outputdir, "./");
 #else
 	char *basepath = getenv("HOME");
-	snprintf(outputdir, sizeof(outputdir), "%s/.barony", basepath);
+	snprintf(outputdir, sizeof(outputdir), "%s/." GAME_SHORT_NAME, basepath);
 	if ( access(outputdir, F_OK) == -1 )
 		mkdir(outputdir, 0777);
 #endif
