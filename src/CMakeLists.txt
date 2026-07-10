@@ -22,6 +22,7 @@ list(APPEND GAME_SOURCES
 	"${CMAKE_CURRENT_SOURCE_DIR}/companion.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/dread.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/lightfuel.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/stalker.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/actitem.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/acthudweapon.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/actgold.cpp"

@@ -13,6 +13,8 @@
 #include "identity.hpp"
 #include "dread.hpp"
 #include "lightfuel.hpp"
+#include "stalker.hpp"
+#include "companion.hpp"
 #include "draw.hpp"
 #include "game.hpp"
 #include "stat.hpp"
@@ -990,6 +992,8 @@ void gameLogic(void)
 
 	dreadUpdate();
 	lightFuelUpdate();
+	stalkerUpdate();
+	companionUpdate();
 
 	int auto_appraise_lowest_time[MAXPLAYERS];
 	Item* auto_appraise_target[MAXPLAYERS];

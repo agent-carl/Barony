@@ -22,3 +22,8 @@
 // non-default game modes, later floors, or if the player already has
 // followers (including a previously spawned companion).
 void companionSpawnAtGameStart();
+
+// Called once per frame from gameLogic(); rate-limits itself to one
+// evaluation per second. Drives the companion's spoken barks (darkness,
+// the player's rising dread, his own wounds). Server-side only.
+void companionUpdate();

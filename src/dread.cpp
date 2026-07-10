@@ -31,6 +31,9 @@ static const int DREAD_DAMAGE = 2;            // psychic damage at the highest s
 static const int DREAD_DAMAGE_PERIOD = 3;     // seconds between damage ticks
 static const float DREAD_COMPANION_FACTOR = 0.75f; // rise multiplier with the companion nearby
 static const real_t DREAD_COMPANION_RANGE = 8 * 16.0; // "nearby" = within 8 tiles
+static const float DREAD_CURSED_ITEM_RISE = 0.4f; // extra rise per equipped cursed item
+static const float DREAD_LIGHT_CIRCLE_FALL = 2.f; // extra fall near a brightly lit ally
+static const real_t DREAD_LIGHT_CIRCLE_RANGE = 4 * 16.0; // "near" = within 4 tiles
 
 // Threshold stages. A message fires only when a stage is entered from below.
 enum DreadStage : int
@@ -89,6 +92,62 @@ static bool companionIsNear(int player)
 	return false;
 }
 
+// Cursed equipment feeds the dark: each equipped item with negative
+// beatitude speeds up dread growth.
+static int cursedEquipmentCount(int player)
+{
+	if ( !stats[player] )
+	{
+		return 0;
+	}
+	Item* slots[] = {
+		stats[player]->helmet, stats[player]->breastplate, stats[player]->gloves,
+		stats[player]->shoes, stats[player]->shield, stats[player]->weapon,
+		stats[player]->cloak, stats[player]->amulet, stats[player]->ring,
+		stats[player]->mask,
+	};
+	int count = 0;
+	for ( Item* item : slots )
+	{
+		if ( item && item->beatitude < 0 )
+		{
+			++count;
+		}
+	}
+	return count;
+}
+
+// Huddling in a brightly lit ally's circle of light calms the nerves faster.
+static bool litAllyIsNear(int player)
+{
+	if ( !players[player] || !players[player]->entity )
+	{
+		return false;
+	}
+	for ( int j = 0; j < MAXPLAYERS; ++j )
+	{
+		if ( j == player || client_disconnected[j] || !players[j] || !players[j]->entity || !stats[j] )
+		{
+			continue;
+		}
+		if ( stats[j]->HP <= 0 )
+		{
+			continue;
+		}
+		const real_t dx = players[j]->entity->x - players[player]->entity->x;
+		const real_t dy = players[j]->entity->y - players[player]->entity->y;
+		if ( dx * dx + dy * dy > DREAD_LIGHT_CIRCLE_RANGE * DREAD_LIGHT_CIRCLE_RANGE )
+		{
+			continue;
+		}
+		if ( players[j]->entity->entityLight() >= DREAD_LIGHT_BRIGHT )
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 static int dreadStageForValue(float value)
 {
 	int stage = DREAD_STAGE_CALM;
@@ -110,6 +169,20 @@ float dreadGet(int player)
 		return 0.f;
 	}
 	return dread[player];
+}
+
+void dreadRelieve(int player, float ceiling)
+{
+	if ( player < 0 || player >= MAXPLAYERS )
+	{
+		return;
+	}
+	if ( dread[player] > ceiling )
+	{
+		dread[player] = std::max(0.f, ceiling);
+		dreadStage[player] = dreadStageForValue(dread[player]);
+		dreadDamageCountdown[player] = 0;
+	}
 }
 
 void dreadReset(int player)
@@ -173,19 +246,21 @@ void dreadUpdate()
 		if ( light < DREAD_LIGHT_DARK )
 		{
 			float rise = DREAD_RISE_PER_SEC + DREAD_RISE_PER_5_FLOORS * (currentlevel / 5);
+			rise += DREAD_CURSED_ITEM_RISE * cursedEquipmentCount(i);
 			if ( companionIsNear(i) )
 			{
 				rise *= DREAD_COMPANION_FACTOR;
 			}
 			value += rise;
 		}
-		else if ( light >= DREAD_LIGHT_BRIGHT )
-		{
-			value -= DREAD_FALL_BRIGHT;
-		}
 		else
 		{
-			value -= DREAD_FALL_DIM;
+			float fall = (light >= DREAD_LIGHT_BRIGHT) ? DREAD_FALL_BRIGHT : DREAD_FALL_DIM;
+			if ( litAllyIsNear(i) )
+			{
+				fall += DREAD_LIGHT_CIRCLE_FALL;
+			}
+			value -= fall;
 		}
 		value = std::min(std::max(0.f, value), DREAD_MAX);
 

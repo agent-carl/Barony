@@ -21,6 +21,10 @@ void dreadUpdate();
 // Current dread of a player, 0..100 (for future UI/effects hooks).
 float dreadGet(int player);
 
+// Lower a player's dread to at most `ceiling` (no-op if already below).
+// Used for cathartic moments, e.g. surviving the umbral stalker.
+void dreadRelieve(int player, float ceiling);
+
 // Called after each map is populated (assignActions): zeroes dread on a
 // fresh run's start floor, halves it on ordinary level transitions.
 void dreadOnMapLoad();
