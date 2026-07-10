@@ -58,6 +58,18 @@ PAL = {
     "glass_gold":  (210, 170, 90),
     "glass_violet":(110, 70, 140),
     "lead":        (30, 30, 34),
+    "water_deep":  (18, 26, 34),
+    "water_mid":   (28, 40, 50),
+    "water_hl":    (52, 70, 82),
+    "cobble_dark": (48, 50, 54),
+    "cobble_mid":  (62, 65, 70),
+    "canvas":      (52, 46, 40),
+    "skin_pale":   (150, 130, 110),
+    "frame_gold":  (120, 94, 46),
+    "ember":       (120, 40, 24),
+    "mosaic_gold": (150, 122, 62),
+    "mosaic_blue": (52, 62, 92),
+    "mosaic_ivory":(140, 134, 116),
 }
 
 def shade(c, f):
@@ -464,6 +476,235 @@ def floor_carpet(seed=107):
                     px[x % S, y % S] = PAL["carpet_gold"] if (x + y) % 2 else PAL["carpet_mid"]
     return img
 
+# --- Variations of the workhorse surfaces ------------------------------------
+def stone_wall_cracked(seed=131):
+    img = stone_wall(seed)
+    rng = random.Random(seed + 1)
+    px = img.load()
+    # a jagged crack running down the whole tile
+    cx = rng.randint(8, 24)
+    for y in range(S):
+        px[cx % S, y] = PAL["mortar"]
+        if rng.random() < 0.5:
+            px[(cx + 1) % S, y] = shade(PAL["stone_dark"], 0.7)
+        cx += rng.choice([-1, 0, 0, 1])
+    return img
+
+def stone_wall_mossy(seed=137):
+    img = stone_wall(seed)
+    rng = random.Random(seed + 1)
+    px = img.load()
+    # damp lower half, moss creeping up in patches
+    for x in range(S):
+        h = rng.randint(6, 16)
+        for y in range(S - h, S):
+            r, g, b = px[x, y]
+            f = (y - (S - h)) / max(1, h)
+            if rng.random() < 0.55 + 0.4 * f:
+                mg = PAL["moss"]
+                px[x, y] = (int(r * (1 - f * 0.7) + mg[0] * f * 0.7),
+                            int(g * (1 - f * 0.7) + mg[1] * f * 0.7),
+                            int(b * (1 - f * 0.7) + mg[2] * f * 0.7))
+    return img
+
+# --- Mansion fireplace (warm accent) -----------------------------------------
+def fireplace(seed=139):
+    rng = random.Random(seed)
+    img = stone_wall(seed)
+    px = img.load()
+    # stone mantel
+    for x in range(4, 28):
+        px[x, 8] = PAL["stone_hl"]
+        px[x, 9] = PAL["stone_light"]
+    # firebox opening
+    for x in range(8, 24):
+        for y in range(10, 26):
+            arch = abs(x - 16) > 6 and y < 13
+            if not arch:
+                px[x, y] = PAL["void"]
+    # burning logs and flame
+    for x in range(10, 22):
+        for y in range(20, 26):
+            noisy(px, x, y, PAL["ember"] if y > 22 else PAL["flame_deep"], rng, 10)
+    for x in range(12, 20):
+        for y in range(15, 21):
+            d = abs(x - 16) + abs(y - 19)
+            if d < 5:
+                noisy(px, x, y, PAL["flame"] if d > 2 else PAL["flame_core"], rng, 8)
+    # glow spill on surrounding stone
+    for x in range(S):
+        for y in range(S):
+            d2 = (x - 16) ** 2 + (y - 20) ** 2
+            if 36 < d2 < 150:
+                r, g, b = px[x, y]
+                f = (150 - d2) / 150.0 * 0.4
+                px[x, y] = (min(255, int(r + 90 * f)), min(255, int(g + 50 * f)), b)
+    # hearth stones
+    for x in range(6, 26):
+        px[x, 26] = PAL["stone_dark"]
+        px[x, 27] = PAL["stone_mid"]
+    return img
+
+# --- Haunted portrait (mansion) ------------------------------------------------
+def portrait_wall(seed=149):
+    img = wood_panel(seed)
+    rng = random.Random(seed + 1)
+    px = img.load()
+    # gilded frame
+    for x in range(9, 23):
+        for y in range(5, 25):
+            on_frame = x in (9, 10, 21, 22) or y in (5, 6, 23, 24)
+            if on_frame:
+                px[x, y] = PAL["frame_gold"] if (x + y) % 2 else PAL["brass_hl"]
+    # dark canvas
+    for x in range(11, 21):
+        for y in range(7, 23):
+            noisy(px, x, y, PAL["canvas"], rng, 5)
+    # pale figure: head and shoulders, eyes that follow
+    cx = 16
+    for dx in range(-2, 3):
+        for dy in range(-2, 3):
+            if dx * dx + dy * dy <= 4:
+                noisy(px, cx + dx, 11 + dy, PAL["skin_pale"], rng, 5)
+    px[cx - 1, 11] = PAL["void"]
+    px[cx + 1, 11] = PAL["void"]
+    for dx in range(-3, 4):
+        for dy in range(0, 5):
+            if abs(dx) + dy < 6:
+                noisy(px, cx + dx, 16 + dy, shade(PAL["canvas"], 0.6), rng, 4)
+    return img
+
+# --- Studded wooden door --------------------------------------------------------
+def door_wood(seed=151):
+    rng = random.Random(seed)
+    img = Image.new("RGB", (S, S), PAL["wood_dark"])
+    px = img.load()
+    # vertical planks
+    for x in range(S):
+        for y in range(S):
+            plank = (x // 5) % 2
+            base = PAL["wood_mid"] if plank else PAL["wood_light"]
+            if x % 5 == 0:
+                base = PAL["wood_dark"]
+            noisy(px, x, y, base, rng, 5)
+    # iron banding with studs
+    for by in (6, 25):
+        for x in range(S):
+            px[x, by] = PAL["iron"]
+            px[x, by + 1] = PAL["iron_hl"] if x % 4 == 2 else shade(PAL["iron"], 0.8)
+    # ring handle
+    for dx in range(-2, 3):
+        for dy in range(-2, 3):
+            d2 = dx * dx + dy * dy
+            if 2 <= d2 <= 5:
+                px[24 + dx, 16 + dy] = PAL["iron_hl"]
+    px[24, 14] = PAL["iron"]
+    # stone jamb
+    for y in range(S):
+        for x in (0, 1, 30, 31):
+            noisy(px, x, y, PAL["stone_dark"], rng, 5)
+    return img
+
+# --- Chapel carved arch ----------------------------------------------------------
+def chapel_arch(seed=157):
+    img = stone_wall(seed)
+    rng = random.Random(seed + 1)
+    px = img.load()
+    # blind lancet arch carved in relief
+    cx = 16
+    for y in range(6, 28):
+        half = 7 if y > 13 else max(1, y - 6)
+        for x in (cx - half, cx + half):
+            px[x % S, y] = PAL["stone_hl"]
+            px[(x + (1 if x < cx else -1)) % S, y] = shade(PAL["stone_dark"], 0.75)
+        if y > 13:
+            for x in range(cx - half + 2, cx + half - 1):
+                noisy(px, x, y, shade(PAL["stone_dark"], 0.85), rng, 4)
+    # carved cross inside
+    for y in range(16, 24):
+        px[cx, y] = PAL["stone_hl"]
+    for x in range(cx - 2, cx + 3):
+        px[x, 18] = PAL["stone_hl"]
+    return img
+
+# --- Cobblestone (courtyards, streets) --------------------------------------------
+def floor_cobble(seed=163):
+    rng = random.Random(seed)
+    img = Image.new("RGB", (S, S), PAL["mortar"])
+    px = img.load()
+    # rounded stones on a jittered grid
+    for gy in range(0, S, 6):
+        for gx in range(0, S, 6):
+            cx = gx + 3 + rng.randint(-1, 1)
+            cy = gy + 3 + rng.randint(-1, 1)
+            base = rng.choice([PAL["cobble_dark"], PAL["cobble_mid"], PAL["stone_mid"]])
+            for dx in range(-3, 4):
+                for dy in range(-3, 4):
+                    if dx * dx + dy * dy <= 7:
+                        c = shade(base, 1.2) if (dx < 0 and dy < 0) else base
+                        noisy(px, (cx + dx) % S, (cy + dy) % S, c, rng, 5)
+    return img
+
+# --- Chapel mosaic ------------------------------------------------------------------
+def floor_mosaic(seed=167):
+    rng = random.Random(seed)
+    img = Image.new("RGB", (S, S), PAL["mortar"])
+    px = img.load()
+    for x in range(S):
+        for y in range(S):
+            if x % 4 == 3 or y % 4 == 3:
+                px[x, y] = PAL["mortar"]
+                continue
+            ring = max(abs(x - 16), abs(y - 16)) // 4
+            base = [PAL["mosaic_ivory"], PAL["mosaic_blue"], PAL["mosaic_gold"], PAL["mosaic_blue"]][ring % 4]
+            noisy(px, x, y, base, rng, 6)
+    return img
+
+# --- Flooded sewer floor ---------------------------------------------------------------
+def floor_water(seed=173):
+    rng = random.Random(seed)
+    img = Image.new("RGB", (S, S), PAL["water_deep"])
+    px = img.load()
+    for x in range(S):
+        for y in range(S):
+            base = PAL["water_mid"] if (y * 3 + x) % 9 < 2 else PAL["water_deep"]
+            noisy(px, x, y, base, rng, 4)
+    # ripple highlights
+    for _ in range(6):
+        rx, ry, rl = rng.randint(2, 28), rng.randint(2, 29), rng.randint(3, 7)
+        for i in range(rl):
+            px[(rx + i) % S, ry] = PAL["water_hl"]
+    # drowned flagstone peeking through
+    for x in range(20, 27):
+        for y in range(22, 28):
+            noisy(px, x, y, shade(PAL["floor_mid"], 0.6), rng, 4)
+    return img
+
+# --- Mansion ceiling beams ----------------------------------------------------------------
+def ceiling_beams(seed=179):
+    rng = random.Random(seed)
+    img = Image.new("RGB", (S, S), (26, 24, 24))
+    px = img.load()
+    # plaster field
+    for x in range(S):
+        for y in range(S):
+            noisy(px, x, y, (58, 54, 50), rng, 4)
+    # dark oak beams
+    for bx in (2, 16, 30):
+        for y in range(S):
+            for dx in range(-2, 3):
+                x = (bx + dx) % S
+                c = PAL["wood_dark"] if abs(dx) == 2 else PAL["wood_mid"]
+                if dx == -1:
+                    c = PAL["wood_light"]
+                noisy(px, x, y, c, rng, 4)
+    # cross beam
+    for x in range(S):
+        for dy in range(-2, 3):
+            c = PAL["wood_dark"] if abs(dy) == 2 else PAL["wood_mid"]
+            noisy(px, x, (16 + dy) % S, c, rng, 4)
+    return img
+
 # --- Output -----------------------------------------------------------------
 import os
 out = os.environ.get("OUT_DIR", ".")
@@ -471,19 +712,33 @@ os.makedirs(out, exist_ok=True)
 
 tiles = {
     "wall_stone": stone_wall(),
+    "wall_stone2": stone_wall(19),          # layout variant for tiling variety
+    "wall_stone_cracked": stone_wall_cracked(),
+    "wall_stone_mossy": stone_wall_mossy(),
     "wall_gaslamp": gaslamp_wall(),
     "wall_brick": brick_wall(),
+    "wall_brick2": brick_wall(59),          # layout variant
     "wall_bone": bone_wall(),
     "wall_wood_panel": wood_panel(),
     "wall_wallpaper": wallpaper(),
     "wall_bookshelf": bookshelf(),
+    "wall_bookshelf2": bookshelf(77),       # different books
     "wall_stained_glass": stained_glass(),
     "wall_iron_grate": iron_grate(),
+    "wall_fireplace": fireplace(),
+    "wall_portrait": portrait_wall(),
+    "wall_door_wood": door_wood(),
+    "wall_chapel_arch": chapel_arch(),
     "floor_flagstone": stone_floor(),
+    "floor_flagstone2": stone_floor(29),    # layout variant
     "floor_planks": floor_planks(),
     "floor_marble": floor_marble(),
     "floor_dirt": floor_dirt(),
     "floor_carpet": floor_carpet(),
+    "floor_cobble": floor_cobble(),
+    "floor_mosaic": floor_mosaic(),
+    "floor_water": floor_water(),
+    "ceiling_beams": ceiling_beams(),
 }
 for name, img in tiles.items():
     img.save(f"{out}/{name}.png")
@@ -492,7 +747,7 @@ for name, img in tiles.items():
 tile_grid = 3
 scale = 5
 gap = 10
-cols = 5
+cols = 7
 cell = S * tile_grid * scale
 rows = (len(tiles) + cols - 1) // cols
 sheet = Image.new("RGB", (cols * (cell + gap) - gap, rows * (cell + gap) - gap), (12, 12, 14))
