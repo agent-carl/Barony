@@ -1,0 +1,24 @@
+/*-------------------------------------------------------------------------------
+
+	PROJECT UMBRA
+	File: companion.hpp
+	Desc: solo-mode AI companion. When a fresh singleplayer game starts,
+	the player is joined by a loyal follower who takes orders through the
+	existing FollowerMenu / ALLY_CMD system.
+
+	Copyright (c) 2026 Project Umbra authors. BSD 2-Clause, see NOTICE.md.
+
+-------------------------------------------------------------------------------*/
+
+#pragma once
+
+// Stat attribute key marking the solo companion (persists through level
+// transitions along with the rest of the follower's stats).
+#define COMPANION_ATTRIBUTE "UMBRA_COMPANION"
+
+// Called at the end of assignActions() after players are placed on the map.
+// Spawns the companion next to player 0 on a fresh singleplayer run:
+// no-op for clients, multiplayer games, splitscreen, savegame loads,
+// non-default game modes, later floors, or if the player already has
+// followers (including a previously spawned companion).
+void companionSpawnAtGameStart();
