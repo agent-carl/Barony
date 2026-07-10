@@ -70,6 +70,12 @@ PAL = {
     "mosaic_gold": (150, 122, 62),
     "mosaic_blue": (52, 62, 92),
     "mosaic_ivory":(140, 134, 116),
+    "terracotta":  (122, 68, 48),
+    "cream":       (176, 162, 134),
+    "ivy":         (44, 66, 44),
+    "ivy_light":   (62, 88, 56),
+    "wax":         (188, 176, 148),
+    "plaque":      (96, 92, 84),
 }
 
 def shade(c, f):
@@ -705,6 +711,321 @@ def ceiling_beams(seed=179):
             noisy(px, x, (16 + dy) % S, c, rng, 4)
     return img
 
+# --- Victorian encaustic tile (very Victorian!) -------------------------------
+def floor_encaustic(seed=181):
+    rng = random.Random(seed)
+    img = Image.new("RGB", (S, S), PAL["mortar"])
+    px = img.load()
+    for x in range(S):
+        for y in range(S):
+            if x % 16 == 15 or y % 16 == 15:
+                px[x, y] = PAL["mortar"]
+                continue
+            lx, ly = x % 16, y % 16
+            # quarter-diamond four-color pattern
+            d = abs(lx - 7.5) + abs(ly - 7.5)
+            if d < 4:
+                base = PAL["mosaic_blue"]
+            elif d < 7:
+                base = PAL["cream"]
+            elif d < 10:
+                base = PAL["terracotta"]
+            else:
+                base = PAL["cream"] if (lx < 3 or lx > 12) == (ly < 3 or ly > 12) else PAL["marble_dark"]
+            noisy(px, x, y, base, rng, 5)
+    return img
+
+# --- Sewer wall with cast-iron pipe -------------------------------------------
+def wall_pipe(seed=191):
+    img = brick_wall(seed)
+    rng = random.Random(seed + 1)
+    px = img.load()
+    # horizontal pipe with flanges
+    for x in range(S):
+        for dy in range(-2, 3):
+            y = 20 + dy
+            c = PAL["iron"] if abs(dy) == 2 else PAL["iron_hl"] if dy == -1 else shade(PAL["iron"], 0.9)
+            noisy(px, x, y, c, rng, 4)
+    for fx in (4, 27):
+        for dy in range(-3, 4):
+            px[fx, 20 + dy] = PAL["iron_hl"] if dy % 2 else PAL["iron"]
+    # drip stain under a joint
+    for y in range(23, 30):
+        noisy(px, 15, y, PAL["moss"], rng, 6)
+        if rng.random() < 0.5:
+            noisy(px, 16, y, PAL["moss"], rng, 6)
+    return img
+
+# --- Chapel votive candles shelf ------------------------------------------------
+def wall_candles(seed=193):
+    img = stone_wall(seed)
+    rng = random.Random(seed + 1)
+    px = img.load()
+    # stone shelf
+    for x in range(3, 29):
+        px[x, 20] = PAL["stone_hl"]
+        px[x, 21] = PAL["stone_light"]
+    # candles of varying heights
+    x = 5
+    while x < 27:
+        h = rng.randint(3, 7)
+        for y in range(20 - h, 20):
+            px[x, y] = PAL["wax"]
+            if x + 1 < 27:
+                px[x + 1, y] = shade(PAL["wax"], 0.8)
+        # flame
+        px[x, 20 - h - 1] = PAL["flame_core"]
+        px[x, 20 - h - 2] = PAL["flame"]
+        # glow on stone behind
+        for dx in range(-2, 3):
+            for dy in range(-3, 1):
+                gx, gy = x + dx, 20 - h - 2 + dy
+                if 0 <= gx < S and 0 <= gy < S:
+                    r, g, b = px[gx, gy]
+                    px[gx, gy] = (min(255, r + 26), min(255, g + 18), b)
+        x += rng.randint(3, 5)
+    return img
+
+# --- Ivy-grown stone (courtyards) -------------------------------------------------
+def wall_ivy(seed=197):
+    img = stone_wall(seed)
+    rng = random.Random(seed + 1)
+    px = img.load()
+    # several vines climbing with leaves
+    for vine in range(4):
+        vx = rng.randint(2, 29)
+        for y in range(S - 1, rng.randint(2, 12), -1):
+            px[vx % S, y] = PAL["ivy"]
+            if rng.random() < 0.45:
+                lx = vx + rng.choice([-1, 1])
+                px[lx % S, y] = PAL["ivy_light"] if rng.random() < 0.5 else PAL["ivy"]
+                if rng.random() < 0.3:
+                    px[(lx + rng.choice([-1, 1])) % S, y] = PAL["ivy_light"]
+            vx += rng.choice([-1, 0, 0, 1])
+    return img
+
+# --- Crypt memorial plaques ---------------------------------------------------------
+def wall_plaques(seed=199):
+    img = stone_wall(seed)
+    rng = random.Random(seed + 1)
+    px = img.load()
+    for (x0, y0) in ((3, 4), (18, 4), (3, 18), (18, 18)):
+        w, h = 11, 9
+        for x in range(x0, x0 + w):
+            for y in range(y0, y0 + h):
+                edge = x in (x0, x0 + w - 1) or y in (y0, y0 + h - 1)
+                if edge:
+                    px[x, y] = shade(PAL["plaque"], 1.25) if (x == x0 or y == y0) else shade(PAL["plaque"], 0.6)
+                else:
+                    noisy(px, x, y, PAL["plaque"], rng, 4)
+        # engraved lines of a name
+        for line in range(2):
+            ly = y0 + 3 + line * 2
+            for x in range(x0 + 2, x0 + w - 2):
+                if rng.random() < 0.7:
+                    px[x, ly] = shade(PAL["plaque"], 0.55)
+    return img
+
+# --- Bone-littered floor (catacombs) ---------------------------------------------------
+def floor_bones(seed=211):
+    img = floor_dirt(seed)
+    rng = random.Random(seed + 1)
+    px = img.load()
+    # long bones
+    for _ in range(5):
+        x, y = rng.randint(2, 24), rng.randint(2, 29)
+        l = rng.randint(4, 7)
+        horiz = rng.random() < 0.5
+        for i in range(l):
+            bx, by = (x + i, y) if horiz else (x, y + i)
+            px[bx % S, by % S] = PAL["bone"] if 0 < i < l - 1 else PAL["bone_shadow"]
+    # a skull
+    cx, cy = rng.randint(6, 26), rng.randint(6, 26)
+    for dx in range(-2, 3):
+        for dy in range(-2, 2):
+            if dx * dx + dy * dy <= 4:
+                noisy(px, (cx + dx) % S, (cy + dy) % S, PAL["bone"], rng, 5)
+    px[(cx - 1) % S, cy] = PAL["void"]
+    px[(cx + 1) % S, cy] = PAL["void"]
+    return img
+
+# --- Mossy flagstone floor ---------------------------------------------------------------
+def floor_moss(seed=223):
+    img = stone_floor(seed)
+    rng = random.Random(seed + 1)
+    px = img.load()
+    for _ in range(5):
+        cx, cy = rng.randint(3, 28), rng.randint(3, 28)
+        rr = rng.randint(2, 5)
+        for dx in range(-rr, rr + 1):
+            for dy in range(-rr, rr + 1):
+                if dx * dx + dy * dy <= rr * rr and rng.random() < 0.75:
+                    c = PAL["ivy_light"] if rng.random() < 0.3 else PAL["moss"]
+                    noisy(px, (cx + dx) % S, (cy + dy) % S, c, rng, 6)
+    return img
+
+# --- Stone vault ceiling ---------------------------------------------------------------------
+def ceiling_vault(seed=227):
+    rng = random.Random(seed)
+    img = Image.new("RGB", (S, S), PAL["mortar"])
+    px = img.load()
+    # radial wedge stones around a center boss
+    cx = cy = 16
+    import math
+    for x in range(S):
+        for y in range(S):
+            ang = math.atan2(y - cy, x - cx)
+            d = math.hypot(x - cx, y - cy)
+            wedge = int((ang + math.pi) / (math.pi / 6))
+            ring = int(d / 6)
+            if int(d) % 6 == 5 or (wedge + ring) % 2 == 0 and int(ang * 12) % 3 == 0:
+                base = PAL["mortar"]
+            else:
+                base = PAL["stone_mid"] if (wedge + ring) % 2 else PAL["stone_dark"]
+            noisy(px, x, y, base, rng, 5)
+    # central boss
+    for dx in range(-2, 3):
+        for dy in range(-2, 3):
+            if dx * dx + dy * dy <= 4:
+                px[cx + dx, cy + dy] = PAL["stone_hl"]
+    return img
+
+# --- Plank ceiling ------------------------------------------------------------------------------
+def ceiling_planks(seed=229):
+    img = floor_planks(seed)
+    px = img.load()
+    # darken overall - ceilings live in shadow
+    for x in range(S):
+        for y in range(S):
+            r, g, b = px[x, y]
+            px[x, y] = (int(r * 0.72), int(g * 0.72), int(b * 0.72))
+    return img
+
+# --- Decor / item sprites (RGBA, transparent background) -------------------------------------------
+def _sprite():
+    return Image.new("RGBA", (S, S), (0, 0, 0, 0))
+
+def spr(px, x, y, c):
+    px[x, y] = (c[0], c[1], c[2], 255)
+
+def sprite_lantern(seed=233):
+    img = _sprite()
+    px = img.load()
+    cx = 16
+    for x in range(cx - 2, cx + 3):
+        spr(px, x, 6, PAL["brass"])
+    spr(px, cx, 4, PAL["iron_hl"])
+    spr(px, cx, 5, PAL["iron"])
+    for y in range(7, 22):
+        for x in range(cx - 5, cx + 6):
+            dx = abs(x - cx)
+            if dx == 5 or y in (7, 21):
+                spr(px, x, y, PAL["brass"] if (x + y) % 2 else PAL["brass_hl"])
+            elif dx == 2 and y % 4 != 1:
+                spr(px, x, y, PAL["brass"])
+            else:
+                dy = abs(y - 14)
+                c = PAL["glass_glow"] if dx <= 1 and dy <= 3 else PAL["flame"]
+                spr(px, x, y, c)
+    for y in range(11, 18):
+        spr(px, cx, y, PAL["flame_core"])
+    for x in range(cx - 3, cx + 4):
+        spr(px, x, 22, PAL["brass_hl"] if x % 2 else PAL["brass"])
+    return img
+
+def sprite_torch(seed=239):
+    rng = random.Random(seed)
+    img = _sprite()
+    px = img.load()
+    for y in range(14, 28):
+        spr(px, 15, y, PAL["wood_mid"])
+        spr(px, 16, y, PAL["wood_light"])
+        spr(px, 17, y, PAL["wood_dark"])
+    for x in range(14, 19):
+        spr(px, x, 13, PAL["iron"])
+    for dy in range(0, 8):
+        w = 3 - dy // 3
+        for dx in range(-w, w + 1):
+            c = PAL["flame_core"] if abs(dx) < 1 and dy > 2 else PAL["flame"] if dy > 1 else PAL["flame_deep"]
+            if rng.random() < 0.9:
+                spr(px, 16 + dx, 12 - dy, c)
+    return img
+
+def sprite_oil_flask(seed=241):
+    img = _sprite()
+    px = img.load()
+    cx = 16
+    spr(px, cx, 8, PAL["wood_dark"])  # cork
+    spr(px, cx, 9, PAL["wood_mid"])
+    for y in range(10, 13):
+        spr(px, cx - 1, y, PAL["glass_glow"])
+        spr(px, cx, y, PAL["glass_glow"])
+        spr(px, cx + 1, y, PAL["glass_glow"])
+    for y in range(13, 24):
+        half = 4 if 14 < y < 22 else 3
+        for dx in range(-half, half + 1):
+            c = PAL["brass"] if y > 16 else PAL["glass_glow"]  # oil below, air above
+            if abs(dx) == half:
+                c = shade(PAL["glass_glow"], 0.7)
+            spr(px, cx + dx, y, c)
+    spr(px, cx - 2, 15, (255, 255, 255))  # glint
+    return img
+
+def sprite_matchbox(seed=251):
+    img = _sprite()
+    px = img.load()
+    for x in range(9, 24):
+        for y in range(14, 22):
+            edge = x in (9, 23) or y in (14, 21)
+            c = shade(PAL["carpet_deep"], 1.2) if not edge else shade(PAL["carpet_deep"], 0.7)
+            spr(px, x, y, c)
+    for x in range(11, 22):  # striker strip
+        spr(px, x, 20, PAL["marble_dark"])
+    # a match leaning out
+    for i in range(6):
+        spr(px, 20 + i // 2, 13 - i, PAL["cream"])
+    spr(px, 23, 7, PAL["ember"])
+    return img
+
+def sprite_candelabrum(seed=257):
+    img = _sprite()
+    px = img.load()
+    cx = 16
+    for y in range(24, 28):
+        for x in range(cx - 3 + (y - 24), cx + 4 - (y - 24)):
+            spr(px, x, y, PAL["brass"] if y % 2 else PAL["brass_hl"])
+    for y in range(14, 24):
+        spr(px, cx, y, PAL["brass"])
+    for dx in (-6, 0, 6):  # three arms
+        spr(px, cx + dx, 13, PAL["brass_hl"])
+        for y in range(10, 13):
+            spr(px, cx + dx, y, PAL["wax"])
+        spr(px, cx + dx, 9, PAL["flame"])
+        spr(px, cx + dx, 8, PAL["flame_core"])
+    for x in range(cx - 6, cx + 7):  # crossbar
+        spr(px, x, 14, PAL["brass"])
+    return img
+
+def sprite_skull(seed=263):
+    rng = random.Random(seed)
+    img = _sprite()
+    px = img.load()
+    cx, cy = 16, 17
+    for dx in range(-5, 6):
+        for dy in range(-5, 4):
+            if dx * dx + (dy * 1.2) ** 2 <= 24:
+                c = PAL["bone"] if dy < 1 else PAL["bone_shadow"]
+                spr(px, cx + dx, cy + dy, shade(c, 1.0 + rng.uniform(-0.06, 0.06)))
+    for ex in (-2, 2):  # sockets
+        for dx in range(-1, 2):
+            for dy in range(-1, 2):
+                if abs(dx) + abs(dy) <= 1:
+                    spr(px, cx + ex + dx, cy - 1 + dy, PAL["void"])
+    spr(px, cx, cy + 1, PAL["bone_dark"])  # nasal
+    for dx in range(-2, 3):  # teeth
+        spr(px, cx + dx, cy + 3, PAL["bone"] if dx % 2 else PAL["bone_shadow"])
+    return img
+
 # --- Output -----------------------------------------------------------------
 import os
 out = os.environ.get("OUT_DIR", ".")
@@ -739,9 +1060,38 @@ tiles = {
     "floor_mosaic": floor_mosaic(),
     "floor_water": floor_water(),
     "ceiling_beams": ceiling_beams(),
+    "floor_encaustic": floor_encaustic(),
+    "wall_pipe": wall_pipe(),
+    "wall_candles": wall_candles(),
+    "wall_ivy": wall_ivy(),
+    "wall_plaques": wall_plaques(),
+    "floor_bones": floor_bones(),
+    "floor_moss": floor_moss(),
+    "ceiling_vault": ceiling_vault(),
+    "ceiling_planks": ceiling_planks(),
 }
 for name, img in tiles.items():
     img.save(f"{out}/{name}.png")
+
+# item / decor sprites (RGBA)
+sprites = {
+    "sprite_lantern": sprite_lantern(),
+    "sprite_torch": sprite_torch(),
+    "sprite_oil_flask": sprite_oil_flask(),
+    "sprite_matchbox": sprite_matchbox(),
+    "sprite_candelabrum": sprite_candelabrum(),
+    "sprite_skull": sprite_skull(),
+}
+for name, img in sprites.items():
+    img.save(f"{out}/{name}.png")
+
+# sprite preview: dark backdrop, 6x scale, one row
+sscale = 6
+srow = Image.new("RGB", (len(sprites) * (S * sscale + 10) - 10, S * sscale), (18, 18, 22))
+for idx, (name, img) in enumerate(sprites.items()):
+    big = img.resize((S * sscale, S * sscale), Image.NEAREST)
+    srow.paste(big, (idx * (S * sscale + 10), 0), big)
+srow.save(f"{out}/preview_sprites.png")
 
 # preview sheet: each tile 3x3 tiled, upscaled, arranged in a grid
 tile_grid = 3
