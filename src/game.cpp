@@ -11,6 +11,7 @@
 
 #include "main.hpp"
 #include "identity.hpp"
+#include "dread.hpp"
 #include "draw.hpp"
 #include "game.hpp"
 #include "stat.hpp"
@@ -985,6 +986,8 @@ void gameLogic(void)
 		input.update();
 		input.consumeBindingsSharedWithFaceHotbar();
 	}
+
+	dreadUpdate();
 
 	int auto_appraise_lowest_time[MAXPLAYERS];
 	Item* auto_appraise_target[MAXPLAYERS];
