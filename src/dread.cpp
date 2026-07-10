@@ -345,6 +345,12 @@ void dreadUpdate()
 				{
 					players[i]->entity->modHP(-damage);
 					messagePlayer(i, MESSAGE_STATUS, "The darkness gnaws at your flesh.");
+					if ( players[i]->isLocalPlayer() )
+					{
+						// the engine's own camera shake sells the hit
+						cameravars[i].shakex += .06;
+						cameravars[i].shakey += 6;
+					}
 				}
 			}
 		}

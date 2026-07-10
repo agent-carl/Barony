@@ -32,7 +32,8 @@ consume, summon), по `act*.cpp` (поведения сущностей), по 
 | Призраки игроков | `Player::Ghost_t` (player.hpp, actplayer.cpp) | база для №19/№20 |
 | Бонус урона заклинаний | `getBonusFromCasterOfSpellElement` (magic/spell.cpp) | тёмная магия |
 | Сетевые пакеты клиенту | `clientPacketHandlers` map в net.cpp (4-символьные коды) | UMBD-синк страха |
-| Эффекты статов | `EFF_*` (stat.hpp), `setEffect` | есть EFF_FEAR — не задействован |
+| Эффекты статов | `EFF_*` (stat.hpp), `setEffect` | EFF_FEAR + `monsterFearfulOfUid` — Тень бежит от света |
+| Камера-тряска | `cameravars[i].shakex/shakey` (main.hpp:686) | урон психики от тьмы |
 | Проклятия | `beatitude < 0` на Item | проклятья кормят страх |
 | Анимация тайлов | `animatedtiles[]` — кадры соседними индексами | кадры воды/огней |
 | Монстры | составные: воксельная модель на конечность, анимация поворотами | впереди (Тень-модель) |

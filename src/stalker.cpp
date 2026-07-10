@@ -112,10 +112,13 @@ void stalkerUpdate()
 
 		if ( stalker && stalkerStats )
 		{
-			// bright light sears it
+			// bright light sears it - and the engine's own fear AI makes it
+			// recoil from the light-bearer (EFF_FEAR + monsterFearfulOfUid)
 			if ( stalker->entityLight() >= STALKER_LIGHT_SEAR )
 			{
 				stalker->modHP(-STALKER_SEAR_DAMAGE);
+				stalker->setEffect(EFF_FEAR, true, 3 * TICKS_PER_SECOND, true);
+				stalker->monsterFearfulOfUid = players[i]->entity->getUID();
 				if ( stalkerSearMessageCooldown[i] <= 0 )
 				{
 					stalkerSearMessageCooldown[i] = 5;
