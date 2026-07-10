@@ -10991,6 +10991,7 @@ void assignActions(map_t* map)
     keepInventoryGlobal = svFlags & SV_FLAG_KEEPINVENTORY;
 
 	companionSpawnAtGameStart();
+	companionOnMapLoad();
 	dreadOnMapLoad();
 }
 

@@ -25,6 +25,10 @@ float dreadGet(int player);
 // Used for cathartic moments, e.g. surviving the umbral stalker.
 void dreadRelieve(int player, float ceiling);
 
+// The companion died: grief makes the dark press harder on this player
+// for the rest of the run (dread rises faster).
+void dreadOnCompanionDeath(int player);
+
 // Called after each map is populated (assignActions): zeroes dread on a
 // fresh run's start floor, halves it on ordinary level transitions.
 void dreadOnMapLoad();

@@ -58,6 +58,18 @@ static float dread[MAXPLAYERS] = { 0.f };
 static int dreadStage[MAXPLAYERS] = { DREAD_STAGE_CALM };
 static int dreadDamageCountdown[MAXPLAYERS] = { 0 };
 
+// Mind scars (idea #22): surviving the Consumed stage and calming back down
+// leaves a mark - the dark frightens less, but the light comforts less too.
+static const float DREAD_SCAR_FACTOR = 0.85f;
+static const float DREAD_SCAR_CALM_THRESHOLD = 20.f;
+static bool everConsumed[MAXPLAYERS] = { false };
+static bool scarred[MAXPLAYERS] = { false };
+
+// Grief (idea #11): the companion's death makes the dark press harder
+// for the rest of the run.
+static const float DREAD_GRIEF_FACTOR = 1.25f;
+static bool grieving[MAXPLAYERS] = { false };
+
 // A living companion close by steadies the nerves: dread rises slower.
 static bool companionIsNear(int player)
 {
@@ -196,6 +208,16 @@ void dreadReset(int player)
 	dreadDamageCountdown[player] = 0;
 }
 
+void dreadOnCompanionDeath(int player)
+{
+	if ( player < 0 || player >= MAXPLAYERS || grieving[player] )
+	{
+		return;
+	}
+	grieving[player] = true;
+	messagePlayer(player, MESSAGE_STATUS, "Albert is gone. The dark feels heavier now.");
+}
+
 void dreadOnMapLoad()
 {
 	const bool freshRun = (currentlevel == startfloor && !loadingsavegame);
@@ -204,6 +226,9 @@ void dreadOnMapLoad()
 		if ( freshRun )
 		{
 			dreadReset(i);
+			everConsumed[i] = false;
+			scarred[i] = false;
+			grieving[i] = false;
 		}
 		else
 		{
@@ -251,6 +276,14 @@ void dreadUpdate()
 			{
 				rise *= DREAD_COMPANION_FACTOR;
 			}
+			if ( scarred[i] )
+			{
+				rise *= DREAD_SCAR_FACTOR;
+			}
+			if ( grieving[i] )
+			{
+				rise *= DREAD_GRIEF_FACTOR;
+			}
 			value += rise;
 		}
 		else
@@ -260,9 +293,25 @@ void dreadUpdate()
 			{
 				fall += DREAD_LIGHT_CIRCLE_FALL;
 			}
+			if ( scarred[i] )
+			{
+				fall *= DREAD_SCAR_FACTOR; // the light comforts less, too
+			}
 			value -= fall;
 		}
 		value = std::min(std::max(0.f, value), DREAD_MAX);
+
+		// mind scars: survive the deepest stage, then find calm
+		if ( value >= DREAD_STAGE_THRESHOLDS[DREAD_STAGE_CONSUMED] )
+		{
+			everConsumed[i] = true;
+		}
+		else if ( everConsumed[i] && !scarred[i] && value <= DREAD_SCAR_CALM_THRESHOLD )
+		{
+			scarred[i] = true;
+			messagePlayer(i, MESSAGE_HINT,
+				"The dark has left its mark on you. You fear it less... and the light warms you less.");
+		}
 
 		const int newStage = dreadStageForValue(value);
 		if ( newStage > dreadStage[i] && DREAD_STAGE_MESSAGES[newStage][0] )

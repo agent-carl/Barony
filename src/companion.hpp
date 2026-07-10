@@ -25,5 +25,11 @@ void companionSpawnAtGameStart();
 
 // Called once per frame from gameLogic(); rate-limits itself to one
 // evaluation per second. Drives the companion's spoken barks (darkness,
-// the player's rising dread, his own wounds). Server-side only.
+// the player's rising dread, his own wounds) and detects his death.
+// Server-side only.
 void companionUpdate();
+
+// Called after each map is populated (next to dreadOnMapLoad): resets the
+// death-detection tracking on a fresh run so a previous run's state can't
+// trigger false grief.
+void companionOnMapLoad();

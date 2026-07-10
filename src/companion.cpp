@@ -13,6 +13,7 @@
 #include "stat.hpp"
 #include "entity.hpp"
 #include "monster.hpp"
+#include "items.hpp"
 #include "player.hpp"
 #include "net.hpp"
 #include "scores.hpp"
@@ -70,6 +71,15 @@ void companionSpawnAtGameStart()
 	strcpy(companionStats->name, COMPANION_NAME);
 	companionStats->setAttribute(COMPANION_ATTRIBUTE, "1");
 
+	// the lantern-bearer: Albert carries a dependable light so a solo player
+	// keeps both hands free. initHuman only rolls random gear for empty
+	// slots, so this pre-set lantern survives his first AI tick. Carried
+	// lights burn down for players only - his lamp is the reliable one.
+	if ( !companionStats->shield )
+	{
+		companionStats->shield = newItem(TOOL_LANTERN, EXCELLENT, 0, 1, 0, true, nullptr);
+	}
+
 	if ( !forceFollower(*leader, *companion) )
 	{
 		printlog("[companion] forceFollower failed, removing companion");
@@ -95,6 +105,29 @@ static const float BARK_DREAD_THRESHOLD = 50.f;
 static int barkDarknessCooldown[MAXPLAYERS] = { 0 };
 static int barkWoundedCooldown[MAXPLAYERS] = { 0 };
 static bool barkedDread[MAXPLAYERS] = { false };
+
+// Death detection: followers are recreated with fresh uids on every level
+// transition, so instead of tracking uids we count consecutive seconds
+// without a living companion. A transition restores him within a tick;
+// three missing seconds after having had him means he is dead.
+static bool hadCompanion[MAXPLAYERS] = { false };
+static int companionMissingSeconds[MAXPLAYERS] = { 0 };
+static const int COMPANION_DEATH_CONFIRM_SECONDS = 3;
+
+void companionOnMapLoad()
+{
+	if ( currentlevel == startfloor && !loadingsavegame )
+	{
+		for ( int i = 0; i < MAXPLAYERS; ++i )
+		{
+			hadCompanion[i] = false;
+			companionMissingSeconds[i] = 0;
+			barkedDread[i] = false;
+			barkDarknessCooldown[i] = 0;
+			barkWoundedCooldown[i] = 0;
+		}
+	}
+}
 
 static Entity* companionForPlayer(int player)
 {
@@ -162,8 +195,19 @@ void companionUpdate()
 		Entity* companion = companionForPlayer(i);
 		if ( !companion )
 		{
+			if ( hadCompanion[i] )
+			{
+				if ( ++companionMissingSeconds[i] >= COMPANION_DEATH_CONFIRM_SECONDS )
+				{
+					hadCompanion[i] = false;
+					companionMissingSeconds[i] = 0;
+					dreadOnCompanionDeath(i);
+				}
+			}
 			continue;
 		}
+		hadCompanion[i] = true;
+		companionMissingSeconds[i] = 0;
 		Stat* companionStats = companion->getStats();
 
 		// his own wounds come first
