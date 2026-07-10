@@ -33,6 +33,9 @@
 #define TORCH_LIGHTING my->skill[0]
 #define TORCH_FLICKER my->skill[1]
 #define TORCH_FIRE my->skill[3]
+// Project Umbra: a taken/burnt sconce stays on the wall, cold, and can be
+// relit with a spare torch (idea #3 - reclaiming floors from the dark).
+#define TORCH_UNLIT my->skill[4]
 
 bool flickerLights = true;
 
@@ -43,6 +46,63 @@ void actTorch(Entity* my)
 	if ( my->ticks == 1 )
 	{
 		my->createWorldUITooltip();
+	}
+
+	if ( TORCH_UNLIT )
+	{
+		// a cold sconce: no flame, no light, no crackle
+		if ( my->light )
+		{
+			my->removeLightField();
+			my->light = nullptr;
+		}
+		TORCH_LIGHTING = 0;
+
+		// relighting (server side)
+		if ( multiplayer != CLIENT )
+		{
+			for ( i = 0; i < MAXPLAYERS; i++ )
+			{
+				if ( (selectedEntity[i] == my || client_selected[i] == my) && inrange[i] )
+				{
+					if ( !players[i] || !players[i]->entity || !stats[i] )
+					{
+						continue;
+					}
+					Item* spare = nullptr;
+					for ( node_t* node = stats[i]->inventory.first; node != nullptr; node = node->next )
+					{
+						Item* invItem = (Item*)node->element;
+						if ( invItem && invItem->type == TOOL_TORCH
+							&& invItem != stats[i]->shield && invItem->status > BROKEN )
+						{
+							spare = invItem;
+							break;
+						}
+					}
+					if ( spare )
+					{
+						consumeItem(spare, i);
+						TORCH_UNLIT = 0;
+						serverUpdateEntitySkill(my, 4);
+						playSoundEntity(my, 134, 64); // ignite
+						messagePlayer(i, MESSAGE_INTERACTION,
+							"You fix a torch in the cold sconce. Light returns to the wall.");
+					}
+					else
+					{
+						messagePlayer(i, MESSAGE_INTERACTION,
+							"The sconce is cold and empty. A spare torch would fix that.");
+					}
+					return;
+				}
+			}
+			if ( my->isInteractWithMonster() )
+			{
+				my->clearMonsterInteract();
+			}
+		}
+		return;
 	}
 
 	// ambient noises (yeah, torches can make these...)
@@ -165,8 +225,10 @@ void actTorch(Entity* my)
 							{
 								GenericGUI.tinkeringKitDegradeOnUse(i);
 							}*/
-							list_RemoveNode(my->light->node);
-							list_RemoveNode(my->mynode);
+							my->removeLightField();
+							my->light = nullptr;
+							TORCH_UNLIT = 1;
+							serverUpdateEntitySkill(my, 4);
 							return;
 						}
 						else
@@ -180,8 +242,10 @@ void actTorch(Entity* my)
 					{
 						messagePlayer(i, MESSAGE_INTERACTION | MESSAGE_INVENTORY, Language::get(589));
 						Compendium_t::Events_t::eventUpdate(i, Compendium_t::CPDM_TORCH_WALLS, TOOL_TORCH, 1);
-						list_RemoveNode(my->light->node);
-						list_RemoveNode(my->mynode);
+						my->removeLightField();
+						my->light = nullptr;
+						TORCH_UNLIT = 1;
+						serverUpdateEntitySkill(my, 4);
 						itemPickup(i, item);
 						free(item);
 					}
@@ -191,7 +255,8 @@ void actTorch(Entity* my)
 		}
 		if ( my->isInteractWithMonster() )
 		{
-			list_RemoveNode(my->light->node);
+			my->removeLightField();
+			my->light = nullptr;
 			Entity* monster = uidToEntity(my->interactedByMonster);
 			my->clearMonsterInteract();
 			if ( monster )
@@ -200,7 +265,8 @@ void actTorch(Entity* my)
 				dropItemMonster(item, monster, monster->getStats());
 				//monster->addItemToMonsterInventory(item);
 			}
-			list_RemoveNode(my->mynode);
+			TORCH_UNLIT = 1;
+			serverUpdateEntitySkill(my, 4);
 		}
 	}
 }
