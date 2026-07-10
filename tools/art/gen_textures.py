@@ -1747,6 +1747,28 @@ def sprite_clock(seed=367):
         spr(px, 16 + dx, 21, PAL["brass_hl"])  # pendulum bob
     return img
 
+def sprite_flame_particle(cool=False, seed=467):
+    """Billboard flame particle: the engine animates fire as a swarm of these
+    (actflame.cpp spawns one per tick with random rotation), so a single
+    asymmetric teardrop is all the 'animation' art fire needs."""
+    rng = random.Random(seed + (100 if cool else 0))
+    img = _sprite()
+    px = img.load()
+    core = PAL["glass_blue"] if cool else PAL["flame_core"]
+    mid = PAL["glass_violet"] if cool else PAL["flame"]
+    deep = PAL["mosaic_blue"] if cool else PAL["flame_deep"]
+    cx, cy = 16, 18
+    for dy in range(-10, 6):
+        w = 5 - abs(dy + 3) // 2 if dy < 0 else 5 - dy
+        w = max(0, w)
+        for dx in range(-w, w + 1):
+            wobble = 1 if (dy % 3 == 0 and dx > 0) else 0
+            d = abs(dx) + abs(dy + 3) // 2
+            c = core if d <= 2 else mid if d <= 4 else deep
+            if rng.random() < 0.92:
+                spr(px, cx + dx + wobble, cy + dy, c)
+    return img
+
 # --- Output -----------------------------------------------------------------
 import os
 out = os.environ.get("OUT_DIR", ".")
@@ -1835,6 +1857,8 @@ sprites = {
     "sprite_gravestone": sprite_gravestone(),
     "sprite_urn": sprite_urn(),
     "sprite_clock": sprite_clock(),
+    "sprite_flame_particle": sprite_flame_particle(),
+    "sprite_flame_particle_cold": sprite_flame_particle(cool=True),
 }
 for name, img in sprites.items():
     img.save(f"{out}/{name}.png")

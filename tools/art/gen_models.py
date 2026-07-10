@@ -111,25 +111,18 @@ def model_wall_torch():
     for i in range(8):
         x = 2 + i // 3
         v.box(x, 3, 6 + i, x + 1, 4, 6 + i, "wood_mid" if i % 2 else "wood_light")
-    # binding ring
+    # binding ring and tarred head (the engine draws fire itself: actTorch
+    # spawns billboard flame particles every tick - models stay flameless)
     v.box(4, 3, 13, 5, 4, 13, "iron_hl")
-    # flame head
-    v.sphere(5, 3, 15, 2, "flame_deep")
-    v.sphere(5, 4, 15, 1, "flame")
-    v.set(5, 3, 16, "flame_core")
-    v.set(5, 4, 16, "flame_core")
-    v.set(5, 3, 17, "flame")
+    v.box(4, 3, 14, 5, 4, 15, "void_dark")
     return v
 
 
 def model_wall_torch_unlit():
+    # visually identical stick; "unlit" is a runtime state (no flame
+    # particles, no light). Kept as a separate model in case we later
+    # want a crumbled/burnt look for long-cold sconces.
     v = model_wall_torch()
-    # snuff the flame: clear everything above the ring, char the tip
-    for x in range(v.sx):
-        for y in range(v.sy):
-            for z in range(14, v.sz):
-                v.data[x * (v.sz * v.sy) + y * v.sz + z] = EMPTY
-    v.box(4, 3, 14, 5, 4, 14, "void_dark")  # charred stump
     return v
 
 
