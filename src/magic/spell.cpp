@@ -17,6 +17,7 @@
 #include "../engine/audio/sound.hpp"
 #include "../items.hpp"
 #include "../net.hpp"
+#include "../dread.hpp"
 #include "../player.hpp"
 #include "magic.hpp"
 #include "../mod_tools.hpp"
@@ -1033,6 +1034,18 @@ real_t getBonusFromCasterOfSpellElement(Entity* caster, Stat* casterStats, spell
 		{
 			bonus += getSpellBonusFromCasterINT(caster, casterStats, spell->skillID);
 			spellSkillID = spell->skillID;
+		}
+	}
+
+	// Project Umbra: the dark feeds sorcery. Dread beyond 50 empowers a
+	// player's spells by up to +30% at the peak - staying afraid is a
+	// deliberate gamble (docs/IDEAS.md #14).
+	if ( caster && caster->behavior == &actPlayer )
+	{
+		const real_t dreadValue = dreadGet(caster->skill[2]);
+		if ( dreadValue > 50.0 )
+		{
+			bonus += 0.3 * (dreadValue - 50.0) / 50.0;
 		}
 	}
 

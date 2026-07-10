@@ -29,6 +29,12 @@ void dreadRelieve(int player, float ceiling);
 // for the rest of the run (dread rises faster).
 void dreadOnCompanionDeath(int player);
 
+// Draw the dread vignette over a local player's viewport (call from the
+// HUD pass). Purely visual; a no-op below the first dread stage. Note:
+// network clients don't receive dread values yet, so they see no vignette
+// until a sync packet is added.
+void dreadDrawVignette(int player);
+
 // Called after each map is populated (assignActions): zeroes dread on a
 // fresh run's start floor, halves it on ordinary level transitions.
 void dreadOnMapLoad();

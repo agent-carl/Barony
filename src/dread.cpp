@@ -17,6 +17,8 @@
 #include "mod_tools.hpp"
 #include "scores.hpp"
 #include "companion.hpp"
+#include "draw.hpp"
+#include "colors.hpp"
 #include "dread.hpp"
 
 // Tuning constants (candidates for ConsoleVariable once the values settle).
@@ -236,6 +238,48 @@ void dreadOnMapLoad()
 			dreadStage[i] = dreadStageForValue(dread[i]);
 			dreadDamageCountdown[i] = 0;
 		}
+	}
+}
+
+void dreadDrawVignette(int player)
+{
+	if ( player < 0 || player >= MAXPLAYERS || !players[player] || !players[player]->isLocalPlayer() )
+	{
+		return;
+	}
+	const float value = dread[player];
+	if ( value < DREAD_STAGE_THRESHOLDS[DREAD_STAGE_UNEASY] )
+	{
+		return;
+	}
+
+	// concentric darkening frames approximate a soft vignette without any
+	// texture assets; thickness and opacity both scale with dread.
+	const float intensity = std::min(1.f, value / DREAD_MAX);
+	const int x1 = players[player]->camera_x1();
+	const int y1 = players[player]->camera_y1();
+	const int w = players[player]->camera_width();
+	const int h = players[player]->camera_height();
+	const int rings = 6;
+	const int maxThickness = (std::min(w, h) / 5) * intensity;
+	const Uint32 color = makeColorRGB(4, 2, 8); // near-black with a violet cast
+	for ( int r = 0; r < rings; ++r )
+	{
+		const int inset = maxThickness * r / rings;
+		const int thickness = std::max(1, maxThickness / rings + 1);
+		const Uint8 alpha = static_cast<Uint8>(intensity * 110.f * (rings - r) / rings);
+		if ( alpha == 0 )
+		{
+			continue;
+		}
+		SDL_Rect top = { x1 + inset, y1 + inset, w - inset * 2, thickness };
+		SDL_Rect bottom = { x1 + inset, y1 + h - inset - thickness, w - inset * 2, thickness };
+		SDL_Rect left = { x1 + inset, y1 + inset + thickness, thickness, h - (inset + thickness) * 2 };
+		SDL_Rect right = { x1 + w - inset - thickness, y1 + inset + thickness, thickness, h - (inset + thickness) * 2 };
+		drawRect(&top, color, alpha);
+		drawRect(&bottom, color, alpha);
+		drawRect(&left, color, alpha);
+		drawRect(&right, color, alpha);
 	}
 }
 

@@ -6210,6 +6210,7 @@ void ingameHud()
 		{
 			if ( !nohud )
 			{
+				dreadDrawVignette(player);
 				drawStatusNew(player);
 			}
 			//drawSustainedSpells(player);
