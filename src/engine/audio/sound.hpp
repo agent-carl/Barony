@@ -25,6 +25,7 @@
 #include <AL/al.h>
 #include <AL/alc.h>
 #endif
+#include <vorbis/vorbisfile.h>
 #endif
 #include <mutex>
 #include <queue>
@@ -506,9 +507,42 @@ extern bool olddarkmap;
 extern bool sfxUseDynamicAmbientVolume, sfxUseDynamicEnvironmentVolume;
 
 struct OPENAL_CHANNELGROUP;
-
-struct OPENAL_BUFFER;
 struct OPENAL_SOUND;
+
+// Full definitions live here (not just forward declarations) because shared
+// game code calls FMOD-style methods (release/stop) on these types.
+struct OPENAL_BUFFER {
+	ALuint id;
+	bool stream;
+	char oggfile[256]; // must fit a full PHYSFS real path for streamed music
+	int release(); // FMOD::Sound-compatible name so shared code compiles under OpenAL
+};
+
+struct OPENAL_SOUND {
+	ALuint id;
+	OPENAL_CHANNELGROUP *group;
+	float volume;
+	OPENAL_BUFFER *buffer;
+	bool active;
+	char* oggdata;
+	int oggdata_length;
+	int ogg_seekoffset;
+	OggVorbis_File oggStream;
+	vorbis_info* vorbisInfo;
+	vorbis_comment* vorbisComment;
+	ALuint streambuff[4];
+	bool loop;
+	bool stream_active;
+	int indice;
+	int stop(); // FMOD::Channel-compatible name so shared code compiles under OpenAL
+};
+
+struct OPENAL_CHANNELGROUP {
+	float volume;
+	int num;
+	int cap;
+	OPENAL_SOUND **sounds;
+};
 
 struct FMOD_VECTOR {
 	float x,y,z;
@@ -540,9 +574,11 @@ extern OPENAL_BUFFER* sokobanmusic;
 extern OPENAL_BUFFER* caveslairmusic;
 extern OPENAL_BUFFER* bramscastlemusic;
 extern OPENAL_BUFFER* hamletmusic;
+extern OPENAL_BUFFER** fortressmusic;
 #define NUMCAVESMUSIC 3
 #define NUMCITADELMUSIC 3
 #define NUMINTROMUSIC 3
+#define NUMFORTRESSMUSIC 2
 //TODO: Automatically scan the music folder for a mines subdirectory and use all the music for the mines or something like that. I'd prefer something neat like for that loading music for a level, anyway. And I can just reuse the code I had for ORR.
 
 extern OPENAL_SOUND* music_channel, *music_channel2, *music_resume; //TODO: List of music, play first one, fade out all the others? Eh, maybe some other day. //music_resume is the music to resume after, say, combat or shops. //TODO: Clear music_resume every biome change. Or otherwise validate it for that level set.
@@ -561,8 +597,12 @@ OPENAL_SOUND* playSoundEntity(Entity* entity, Uint16 snd, Uint8 vol);
 OPENAL_SOUND* playSoundEntityLocal(Entity* entity, Uint16 snd, Uint8 vol);
 OPENAL_SOUND* playSound(Uint16 snd, Uint8 vol);
 OPENAL_SOUND* playSoundVelocity(); //TODO: Write.
+void* playSoundNotification(Uint16 snd, Uint8 vol);
+void* playSoundNotificationPlayer(int player, Uint16 snd, Uint8 vol);
 
 void playmusic(OPENAL_BUFFER* sound, bool loop, bool crossfade, bool resume); //Automatically crossfades. NOTE: Resets fadein and fadeout increments to the defaults every time it is called. You'll have to change the fadein and fadeout increments AFTER calling this function.
+void playMusic(OPENAL_BUFFER* sound, bool loop, bool crossfade, bool resume); // modern-API name for playmusic (implemented in sound_game.cpp)
+void stopMusic();
 
 void handleLevelMusic(); //Manages and updates the level music.
 

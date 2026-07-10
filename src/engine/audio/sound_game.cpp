@@ -673,15 +673,18 @@ void playMusic(OPENAL_BUFFER* sound, bool loop, bool crossfade, bool resume)
 	OPENAL_Channel_Play(music_channel);
 }
 
-bool shopmusicplaying = false;
-bool combatmusicplaying = false;
-bool minotaurmusicplaying = false;
-bool herxmusicplaying = false;
-bool devilmusicplaying = false;
-bool olddarkmap = false;
-bool sanctummusicplaying = false;
+// shopmusicplaying / combatmusicplaying / ... / currenttrack are defined in
+// music.cpp for every audio backend.
+extern int currenttrack;
+extern bool sanctummusicplaying;
 
-int currenttrack = -1;
+void* playSoundNotification(Uint16 snd, Uint8 vol) {
+	return playSound(snd, vol);
+}
+
+void* playSoundNotificationPlayer(int player, Uint16 snd, Uint8 vol) {
+	return playSoundPlayer(player, snd, vol);
+}
 
 void handleLevelMusic()
 {

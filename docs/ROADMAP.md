@@ -45,11 +45,19 @@
 - ☐ Вычистить упоминания baronygame.com и апстрим-URL из UI-строк. *(0.5)*
 
 ### 0.3 Технический долг решений
-- ◐ **Аудио-бэкенд** — **решено (владелец, июль 2026): OpenAL.**
-  Реанимировать порт: ~146 ошибок, FMOD-API протёк в `sound.cpp`/`net.cpp`
-  (`playSoundNotification`, `playMusic`, `FMOD_OK`, `FMOD_2D`,
-  `OPENAL_BUFFER::release`). Портировать недостающие обёртки в
-  `engine/audio/`. *(3–5 сессий)*
+- ☑ **Аудио-бэкенд** — **решено (владелец, июль 2026): OpenAL** — и порт
+  **реанимирован**: игра собирается с `-DOPENAL_ENABLED=ON` и линкуется с
+  системными openal/vorbis. Сделано: полные определения структур перенесены
+  в `sound.hpp` (общий код зовёт FMOD-стилевые методы `release()`/`stop()`),
+  compat-шим для FMOD-вызовов в блоке перезагрузки музыки, OpenAL-вариант
+  `physfsReloadMusic_helper_reloadMusicArray`, недостающие
+  `playMusic`/`stopMusic`/`playSoundNotification*`/6-арг `setGlobalVolume`/
+  `setAudioDevice`(no-op), `fortressmusic`, убраны дубли глобалов.
+  **Не сделано:** проверка звука на реальных ассетах (нужна машина
+  владельца); выбор аудио-устройства в меню под OpenAL — заглушка.
+  Известная причуда сборки: CMake генерирует `src/Config.hpp` в дерево
+  исходников — параллельные build-каталоги с разными бэкендами
+  перезаписывают его друг другу; держим один канонический `build/` c OpenAL.
 - ☐ Steam App ID: получить свой в Steamworks ($100 Steam Direct),
   заменить ID Barony в `steam.cpp`/конфигах сборки. До покупки App ID —
   собирать со `STEAMWORKS_ENABLED=0`. *(0.5 после покупки)*

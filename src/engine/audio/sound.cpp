@@ -417,36 +417,6 @@ void sound_update(int player, int index, int numplayers)
 
 #elif defined USE_OPENAL
 
-struct OPENAL_BUFFER {
-	ALuint id;
-	bool stream;
-	char oggfile[64];
-};
-struct OPENAL_SOUND {
-	ALuint id;
-	OPENAL_CHANNELGROUP *group;
-	float volume;
-	OPENAL_BUFFER *buffer;
-	bool active;
-	char* oggdata;
-	int oggdata_length;
-	int ogg_seekoffset;
-	OggVorbis_File oggStream;
-	vorbis_info* vorbisInfo;
-	vorbis_comment* vorbisComment;
-	ALuint streambuff[4];
-	bool loop;
-	bool stream_active;
-	int indice;
-};
-
-struct OPENAL_CHANNELGROUP {
-	float volume;
-	int num;
-	int cap;
-	OPENAL_SOUND **sounds;
-};
-
 SDL_mutex *openal_mutex;
 
 static size_t openal_oggread(void* ptr, size_t size, size_t nmemb, void* datasource) {
@@ -602,7 +572,7 @@ ALCdevice  *openal_device = nullptr;
 //#define openal_maxchannels 100
 
 OPENAL_BUFFER** sounds = nullptr;
-Uint32 numsounds = 0;
+// numsounds is defined in defines.cpp for every audio backend.
 OPENAL_BUFFER** minesmusic = NULL;
 OPENAL_BUFFER** swampmusic = NULL;
 OPENAL_BUFFER** labyrinthmusic = NULL;
@@ -635,6 +605,7 @@ OPENAL_BUFFER* hamletmusic = NULL;
 OPENAL_BUFFER* tutorialmusic = nullptr;
 OPENAL_BUFFER* gameovermusic = nullptr;
 OPENAL_BUFFER* introstorymusic = nullptr;
+OPENAL_BUFFER** fortressmusic = NULL;
 bool levelmusicplaying = false;
 
 OPENAL_SOUND* music_channel = nullptr;
@@ -823,18 +794,25 @@ static int get_firstfreechannel()
 	return i;
 }
 
-void setGlobalVolume(real_t master, real_t music, real_t gameplay, real_t ambient, real_t environment) {
+void setGlobalVolume(real_t master, real_t music, real_t gameplay, real_t ambient, real_t environment, real_t notification) {
     master = std::min(std::max(0.0, master), 1.0);
     music = std::min(std::max(0.0, music / 4.0), 1.0); // music volume cut in half because the music is loud...
     gameplay = std::min(std::max(0.0, gameplay), 1.0);
     ambient = std::min(std::max(0.0, ambient), 1.0);
     environment = std::min(std::max(0.0, environment), 1.0);
+	notification = std::min(std::max(0.0, notification), 1.0);
 
 	OPENAL_ChannelGroup_SetVolume(music_group, master * music);
 	OPENAL_ChannelGroup_SetVolume(sound_group, master * gameplay);
 	OPENAL_ChannelGroup_SetVolume(soundAmbient_group, master * ambient);
 	OPENAL_ChannelGroup_SetVolume(soundEnvironment_group, master * environment);
-	OPENAL_ChannelGroup_SetVolume(music_notification_group, master * gameplay);
+	OPENAL_ChannelGroup_SetVolume(music_notification_group, master * notification);
+}
+
+void setAudioDevice(const std::string& device) {
+	// OpenAL uses the system default output device; per-device selection
+	// is not implemented for this backend.
+	(void)device;
 }
 
 void sound_update(int player, int index, int numplayers)
@@ -1077,7 +1055,7 @@ int OPENAL_CreateSound(const char* name, bool b3D, OPENAL_BUFFER **buffer) {
 int OPENAL_CreateStreamSound(const char* name, OPENAL_BUFFER **buffer) {
 	*buffer = (OPENAL_BUFFER*)malloc(sizeof(OPENAL_BUFFER));
 	(*buffer)->stream = true;
-	strcpy((*buffer)->oggfile, name);
+	(void)snprintf((*buffer)->oggfile, sizeof((*buffer)->oggfile), "%s", name);
 	return 1;
 }
 
@@ -1205,6 +1183,16 @@ void OPENAL_Sound_Release(OPENAL_BUFFER* buffer) {
 	if(!buffer->stream)
 		alDeleteBuffers( 1, &buffer->id );
 	free(buffer);
+}
+
+int OPENAL_BUFFER::release() {
+	OPENAL_Sound_Release(this);
+	return 0;
+}
+
+int OPENAL_SOUND::stop() {
+	OPENAL_Channel_Stop(this);
+	return 0;
 }
 
 #endif
@@ -1430,6 +1418,33 @@ FMOD_RESULT physfsReloadMusic_helper_reloadMusicArray(uint32_t numMusic, const c
 
 	return FMOD_OK;
 }
+#elif defined USE_OPENAL
+int physfsReloadMusic_helper_reloadMusicArray(uint32_t numMusic, const char* filenameTemplate, OPENAL_BUFFER** musicArray, bool reloadAll)
+{
+	for ( int c = 0; c < numMusic; c++ )
+	{
+		snprintf(tempstr, 1000, filenameTemplate, c);
+		if ( PHYSFS_getRealDir(tempstr) != nullptr )
+		{
+			std::string musicDir = PHYSFS_getRealDir(tempstr);
+			if ( musicDir.compare("./") != 0 || reloadAll )
+			{
+				musicDir.append(PHYSFS_getDirSeparator()).append(tempstr);
+				printlog("[PhysFS]: Loading music file %s...", tempstr);
+				if ( musicArray && musicArray[c] )
+				{
+					musicArray[c]->release();
+				}
+				if ( !OPENAL_CreateStreamSound(musicDir.c_str(), &musicArray[c]) )
+				{
+					printlog("[PhysFS]: ERROR: Failed reloading music file \"%s\".", tempstr);
+					return 1;
+				}
+			}
+		}
+	}
+	return 0;
+}
 #endif
 
 void physfsReloadMusic(bool &introMusicChanged, bool reloadAll) //TODO: This should probably return an error.
@@ -1441,11 +1456,25 @@ void physfsReloadMusic(bool &introMusicChanged, bool reloadAll) //TODO: This sho
 #ifdef SOUND
 	int index = 0;
 #ifdef USE_OPENAL
-#define FMOD_System_CreateStream(A, B, C, D, E) OPENAL_CreateStreamSound(B, E) //TODO: If this is still needed, it's probably now broke!
-#define FMOD_SOUND OPENAL_BUFFER
-#define fmod_system 0
-#define FMOD_SOFTWARE 0
+	// Compatibility shim: the shared reload code below is written against the
+	// FMOD C++ API (system->createSound/createStream, FMOD_OK result checks).
+	// Under OpenAL both calls map to a stream buffer; 0 mimics FMOD_OK.
+	struct {
+		int createSound(const char* path, int mode, void* exinfo, OPENAL_BUFFER** out) {
+			return OPENAL_CreateStreamSound(path, out) ? 0 : 1;
+		}
+		int createStream(const char* path, int mode, void* exinfo, OPENAL_BUFFER** out) {
+			return OPENAL_CreateStreamSound(path, out) ? 0 : 1;
+		}
+	} openalFmodCompatSystem;
+	struct FMOD_compat_scope { typedef OPENAL_BUFFER Sound; };
+#define fmod_system (&openalFmodCompatSystem)
+#define FMOD FMOD_compat_scope
+#define FMOD_2D 0
+#define FMOD_DEFAULT 0
+#define FMOD_OK 0
 #define FMOD_Sound_Release OPENAL_Sound_Release
+#define FMODErrorCheck() (fmod_result != 0)
 	int fmod_result;
 #endif
 	bool ensembleNeedsUpdate = false;
@@ -1964,11 +1993,13 @@ void physfsReloadMusic(bool &introMusicChanged, bool reloadAll) //TODO: This sho
 
 	introMusicChanged = introChanged; // use this variable outside of this function to start playing a new fresh list of tracks in the main menu.
 #ifdef USE_OPENAL
-#undef FMOD_System_CreateStream
-#undef FMOD_SOUND
 #undef fmod_system
-#undef FMOD_SOFTWARE
+#undef FMOD
+#undef FMOD_2D
+#undef FMOD_DEFAULT
+#undef FMOD_OK
 #undef FMOD_Sound_Release
+#undef FMODErrorCheck
 #endif
 
 #endif // SOUND
