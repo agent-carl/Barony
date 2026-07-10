@@ -210,6 +210,15 @@ void dreadReset(int player)
 	dreadDamageCountdown[player] = 0;
 }
 
+void dreadClientSetValue(int player, float value)
+{
+	if ( player < 0 || player >= MAXPLAYERS )
+	{
+		return;
+	}
+	dread[player] = std::min(std::max(0.f, value), DREAD_MAX);
+}
+
 void dreadOnCompanionDeath(int player)
 {
 	if ( player < 0 || player >= MAXPLAYERS || grieving[player] )
@@ -381,6 +390,19 @@ void dreadUpdate()
 		else
 		{
 			dreadDamageCountdown[i] = 0;
+		}
+
+		// keep remote clients' vignette in sync (1 byte, once a second;
+		// lossy delivery is fine - the next tick self-heals)
+		if ( multiplayer == SERVER && i > 0 && !players[i]->isLocalPlayer()
+			&& net_packet && net_packet->data )
+		{
+			strcpy((char*)net_packet->data, "UMBD");
+			net_packet->data[4] = static_cast<Uint8>(lround(value));
+			net_packet->address.host = net_clients[i - 1].host;
+			net_packet->address.port = net_clients[i - 1].port;
+			net_packet->len = 5;
+			sendPacket(net_sock, -1, net_packet, i - 1);
 		}
 	}
 }

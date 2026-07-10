@@ -35,6 +35,7 @@
 #include "scores.hpp"
 #include "colors.hpp"
 #include "mod_tools.hpp"
+#include "dread.hpp"
 #include "lobbies.hpp"
 #include "ui/MainMenu.hpp"
 #include "ui/LoadingScreen.hpp"
@@ -2961,6 +2962,12 @@ static std::unordered_map<Uint32, void(*)()> clientPacketHandlers = {
 			}
 		}
 		stats[clientnum]->HP = SDLNet_Read32(&net_packet->data[4]);
+		return;
+	}},
+
+	// Project Umbra: server sent this client's dread level
+	{'UMBD', [](){
+		dreadClientSetValue(clientnum, static_cast<float>(net_packet->data[4]));
 		return;
 	}},
 
