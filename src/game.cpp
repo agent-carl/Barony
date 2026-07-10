@@ -10,6 +10,7 @@
 -------------------------------------------------------------------------------*/
 
 #include "main.hpp"
+#include "identity.hpp"
 #include "draw.hpp"
 #include "game.hpp"
 #include "stat.hpp"
@@ -7316,15 +7317,14 @@ int main(int argc, char** argv)
 		map.worldUI->last = nullptr;
 
 		// initialize engine
-		if ( (c = initApp("Barony", fullscreen)) )
+		if ( (c = initApp(GAME_TITLE, fullscreen)) )
 		{
 			printlog("Critical error: %d\n", c);
 #ifdef STEAMWORKS
 			SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Uh oh",
-									"Barony has encountered a critical error and cannot start.\n\n"
+									GAME_TITLE " has encountered a critical error and cannot start.\n\n"
 									"Please check the log.txt file in the game directory for additional info\n"
-									"and verify Steam is running. Alternatively, contact us through our website\n"
-									"at https://www.baronygame.com/ for support.",
+									"and verify Steam is running.",
 				screen);
 #elif defined USE_EOS
 			if ( EOS.appRequiresRestart == EOS_EResult::EOS_Success )
@@ -7334,17 +7334,15 @@ int main(int argc, char** argv)
 			else
 			{
 				SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Uh oh",
-					"Barony has encountered a critical error and cannot start.\n\n"
+					GAME_TITLE " has encountered a critical error and cannot start.\n\n"
 					"Please check the log.txt file in the game directory for additional info,\n"
-					"and verify the game is launched through the Epic Games Store. \n"
-					"Alternatively, contact us through our website at https://www.baronygame.com/ for support.",
+					"and verify the game is launched through the Epic Games Store.",
 					screen);
 			}
 #else
 			SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Uh oh",
-									"Barony has encountered a critical error and cannot start.\n\n"
-									"Please check the log.txt file in the game directory for additional info,\n"
-									"or contact us through our website at https://www.baronygame.com/ for support.",
+									GAME_TITLE " has encountered a critical error and cannot start.\n\n"
+									"Please check the log.txt file in the game directory for additional info.",
 									screen);
 #endif
 			deinitApp();
@@ -7354,7 +7352,7 @@ int main(int argc, char** argv)
 		MainMenu::randomizeUsername();
 
 		// init message
-		printlog("Barony version: %s\n", VERSION);
+		printlog(GAME_TITLE " version: %s (%s)\n", VERSION, GAME_FORK_NOTICE);
 		char buffer[32];
         getTimeAndDateFormatted(getTime(), buffer, sizeof(buffer));
 		printlog("Launch time: %s\n", buffer);
@@ -7363,9 +7361,8 @@ int main(int argc, char** argv)
 		{
 			printlog("Critical error in initGame: %d\n", c);
 			SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Uh oh",
-			                         "Barony has encountered a critical error and cannot start.\n\n"
-			                         "Please check the log.txt file in the game directory for additional info,\n"
-			                         "or contact us through our website at https://www.baronygame.com/ for support.",
+			                         GAME_TITLE " has encountered a critical error and cannot start.\n\n"
+			                         "Please check the log.txt file in the game directory for additional info.",
 			                         screen);
 			deinitGame();
 			deinitApp();
