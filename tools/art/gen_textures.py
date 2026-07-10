@@ -28,6 +28,14 @@ PAL = {
     "flame":       (240, 178, 84),
     "flame_deep":  (196, 116, 48),
     "glass_glow":  (255, 214, 130),
+    "wood_dark":   (46, 34, 26),
+    "wood_mid":    (66, 48, 36),
+    "wood_light":  (88, 64, 46),
+    "wood_hl":     (110, 82, 58),
+    "paper_base":  (36, 48, 42),
+    "paper_deep":  (28, 38, 34),
+    "paper_motif": (96, 84, 48),
+    "void":        (8, 8, 10),
 }
 
 def shade(c, f):
@@ -137,6 +145,100 @@ def gaslamp_wall(seed=7):
     px[cx, 7] = PAL["brass_hl"]
     return img
 
+# --- Victorian wood panelling (wainscot) ------------------------------------
+def wood_panel(seed=23):
+    rng = random.Random(seed)
+    img = Image.new("RGB", (S, S), PAL["wood_dark"])
+    px = img.load()
+    # horizontal grain base
+    for y in range(S):
+        band = rng.choice([PAL["wood_mid"], PAL["wood_mid"], PAL["wood_light"]])
+        for x in range(S):
+            c = band
+            if rng.random() < 0.08:
+                c = shade(band, 0.8)  # grain flecks
+            noisy(px, x, y, c, rng, 4)
+    # raised panel: outer frame, bevel, inner field
+    def frame(x0, y0, x1, y1):
+        for x in range(x0, x1 + 1):
+            for y in range(y0, y1 + 1):
+                on_edge = x in (x0, x1) or y in (y0, y1)
+                inner = x0 + 2 <= x <= x1 - 2 and y0 + 2 <= y <= y1 - 2
+                if on_edge:
+                    px[x, y] = PAL["wood_dark"]
+                elif not inner:  # bevel: light on top-left, dark bottom-right
+                    lit = (x == x0 + 1 or y == y0 + 1)
+                    px[x, y] = PAL["wood_hl"] if lit else shade(PAL["wood_dark"], 0.85)
+    frame(2, 2, 29, 14)   # upper panel
+    frame(2, 17, 29, 29)  # lower panel
+    # inner field grain
+    for (fx0, fy0, fx1, fy1) in [(4, 4, 27, 12), (4, 19, 27, 27)]:
+        for x in range(fx0, fx1 + 1):
+            for y in range(fy0, fy1 + 1):
+                base = PAL["wood_mid"] if (y % 4) else PAL["wood_light"]
+                noisy(px, x, y, base, rng, 5)
+    return img
+
+# --- Wrought-iron grate over darkness ---------------------------------------
+def iron_grate(seed=31):
+    rng = random.Random(seed)
+    img = Image.new("RGB", (S, S), PAL["void"])
+    px = img.load()
+    # faint depth behind the bars
+    for x in range(S):
+        for y in range(S):
+            if rng.random() < 0.04:
+                px[x, y] = (14, 14, 18)
+    # vertical bars every 6px
+    for bx in range(2, S, 6):
+        for y in range(S):
+            px[bx, y] = PAL["iron_hl"] if y % 7 == 3 else PAL["iron"]
+            if bx + 1 < S:
+                px[bx + 1, y] = shade(PAL["iron"], 0.7)
+    # horizontal straps with rivets
+    for by in (5, 26):
+        for x in range(S):
+            px[x, by] = PAL["iron"]
+            px[x, by + 1] = shade(PAL["iron"], 0.7)
+        for rx in range(4, S, 6):
+            px[rx, by] = PAL["iron_hl"]  # rivet catch-light
+    return img
+
+# --- Victorian damask wallpaper ---------------------------------------------
+def wallpaper(seed=41):
+    rng = random.Random(seed)
+    img = Image.new("RGB", (S, S), PAL["paper_base"])
+    px = img.load()
+    for x in range(S):
+        for y in range(S):
+            base = PAL["paper_base"] if (x + y) % 2 else PAL["paper_deep"]
+            noisy(px, x, y, base, rng, 3)
+    # damask motif on a 16x16 half-drop repeat
+    motif = [
+        "....#....",
+        "...###...",
+        "..#.#.#..",
+        ".#..#..#.",
+        "....#....",
+        ".#.###.#.",
+        "..#####..",
+        "...###...",
+        "....#....",
+    ]
+    def stamp(cx, cy, dim):
+        col = shade(PAL["paper_motif"], 0.75) if dim else PAL["paper_motif"]
+        for my, row in enumerate(motif):
+            for mx, ch in enumerate(row):
+                if ch == '#':
+                    x = (cx + mx - len(row) // 2) % S
+                    y = (cy + my - len(motif) // 2) % S
+                    px[x, y] = col
+    stamp(8, 8, False)
+    stamp(24, 24, False)
+    stamp(24, 8, True)   # half-drop secondary, dimmer
+    stamp(8, 24, True)
+    return img
+
 # --- Output -----------------------------------------------------------------
 import os
 out = os.environ.get("OUT_DIR", ".")
@@ -146,6 +248,9 @@ tiles = {
     "wall_stone": stone_wall(),
     "floor_flagstone": stone_floor(),
     "wall_gaslamp": gaslamp_wall(),
+    "wall_wood_panel": wood_panel(),
+    "wall_iron_grate": iron_grate(),
+    "wall_wallpaper": wallpaper(),
 }
 for name, img in tiles.items():
     img.save(f"{out}/{name}.png")
