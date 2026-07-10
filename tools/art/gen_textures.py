@@ -76,6 +76,20 @@ PAL = {
     "ivy_light":   (62, 88, 56),
     "wax":         (188, 176, 148),
     "plaque":      (96, 92, 84),
+    "velvet_deep": (52, 20, 26),
+    "velvet_mid":  (74, 28, 36),
+    "tile_white":  (152, 154, 148),
+    "tile_grime":  (108, 108, 96),
+    "padding":     (128, 118, 100),
+    "padding_dark":(96, 88, 74),
+    "chalk":       (196, 196, 188),
+    "blood":       (56, 18, 16),
+    "blood_dark":  (38, 12, 12),
+    "mirror_glass":(64, 74, 84),
+    "mirror_hl":   (108, 122, 134),
+    "potion_red":  (150, 40, 44),
+    "potion_green":(60, 110, 60),
+    "organ_pipe":  (150, 140, 120),
 }
 
 def shade(c, f):
@@ -901,6 +915,223 @@ def ceiling_planks(seed=229):
             px[x, y] = (int(r * 0.72), int(g * 0.72), int(b * 0.72))
     return img
 
+# --- Velvet drapes (mansion) ----------------------------------------------------
+def wall_curtain(seed=269):
+    rng = random.Random(seed)
+    img = Image.new("RGB", (S, S), PAL["velvet_deep"])
+    px = img.load()
+    # vertical folds via sine-ish banding
+    for x in range(S):
+        fold = (x * 3) % 7
+        base = PAL["velvet_mid"] if fold in (2, 3) else PAL["velvet_deep"]
+        hl = fold == 3
+        for y in range(S):
+            c = shade(base, 1.18) if hl and y % 5 else base
+            noisy(px, x, y, c, rng, 4)
+    # brass rod and rings
+    for x in range(S):
+        px[x, 1] = PAL["brass"] if x % 5 else PAL["brass_hl"]
+    # gold tieback cord
+    for y in range(18, 23):
+        px[26, y] = PAL["carpet_gold"]
+        px[27, y] = shade(PAL["carpet_gold"], 0.75)
+    return img
+
+# --- Chapel organ pipes ------------------------------------------------------------
+def wall_organ(seed=271):
+    rng = random.Random(seed)
+    img = wood_panel(seed)
+    px = img.load()
+    # pipes of graded heights over a wooden case
+    heights = [10, 14, 18, 22, 18, 14, 10]
+    xw = 4
+    for i, h in enumerate(heights):
+        x0 = 2 + i * xw
+        for x in range(x0, x0 + 3):
+            for y in range(26 - h, 26):
+                c = PAL["organ_pipe"]
+                if x == x0:
+                    c = shade(c, 1.2)
+                elif x == x0 + 2:
+                    c = shade(c, 0.7)
+                noisy(px, x, y, c, rng, 3)
+            # mouth of the pipe
+            px[x, 26 - h + 2] = shade(PAL["organ_pipe"], 0.5)
+    # case rail
+    for x in range(S):
+        px[x, 26] = PAL["wood_dark"]
+        px[x, 27] = PAL["wood_hl"]
+    return img
+
+# --- Apothecary shelf (occult lab) ---------------------------------------------------
+def wall_apothecary(seed=277):
+    rng = random.Random(seed)
+    img = wood_panel(seed)
+    px = img.load()
+    for (y0, y1) in ((4, 12), (16, 24)):
+        for x in range(S):
+            px[x, y0 - 1] = PAL["wood_hl"]
+            px[x, y1 + 1] = PAL["wood_mid"]
+        x = 2
+        while x < 29:
+            w = rng.randint(2, 3)
+            jar = rng.choice([PAL["potion_red"], PAL["potion_green"], PAL["glass_glow"],
+                              PAL["mirror_glass"], PAL["book_brown"]])
+            h = rng.randint(4, y1 - y0 - 1)
+            for sx in range(x, x + w):
+                for sy in range(y1 - h, y1 + 1):
+                    c = jar if sy > y1 - h + 1 else shade(jar, 1.25)
+                    noisy(px, sx, sy, c, rng, 6)
+            # cork/lid
+            px[x + w // 2, y1 - h] = PAL["wood_dark"]
+            # something floating inside the pale jars
+            if jar == PAL["mirror_glass"] and h > 5:
+                px[x + w // 2, y1 - 2] = PAL["skin_pale"]
+            x += w + rng.randint(1, 2)
+    return img
+
+# --- Asylum padded cell -----------------------------------------------------------------
+def wall_padded(seed=281):
+    rng = random.Random(seed)
+    img = Image.new("RGB", (S, S), PAL["padding"])
+    px = img.load()
+    # diamond tufting
+    for x in range(S):
+        for y in range(S):
+            d = (x + y) % 12
+            d2 = (x - y) % 12
+            if d == 0 or d2 == 0:
+                c = PAL["padding_dark"]
+            else:
+                # bulge shading between seams
+                dd = min(d, 12 - d, d2, 12 - d2)
+                c = shade(PAL["padding"], 0.95 + dd * 0.035)
+            noisy(px, x, y, c, rng, 4)
+    # buttons at intersections
+    for x in range(0, S, 12):
+        for y in range(0, S, 12):
+            px[(x) % S, (y) % S] = shade(PAL["padding_dark"], 0.7)
+    # grime along the bottom
+    for x in range(S):
+        for y in range(28, S):
+            noisy(px, x, y, PAL["tile_grime"], rng, 6)
+    return img
+
+# --- Asylum / morgue glazed tiles ----------------------------------------------------------
+def wall_asylum_tiles(seed=283):
+    rng = random.Random(seed)
+    img = Image.new("RGB", (S, S), PAL["mortar"])
+    px = img.load()
+    for x in range(S):
+        for y in range(S):
+            if x % 8 == 7 or y % 8 == 7:
+                px[x, y] = PAL["tile_grime"]
+                continue
+            base = PAL["tile_white"]
+            # aged grime creeping from joints and the floor
+            if y > 24 or rng.random() < 0.08:
+                base = PAL["tile_grime"]
+            if x % 8 == 0 and y % 8 == 0:
+                base = shade(PAL["tile_white"], 1.15)  # glaze glint
+            noisy(px, x, y, base, rng, 5)
+    return img
+
+# --- Ritual chalk circle on flagstone -------------------------------------------------------
+def floor_ritual(seed=293):
+    img = stone_floor(seed)
+    rng = random.Random(seed + 1)
+    px = img.load()
+    import math
+    cx = cy = 16
+    # double circle
+    for r in (11, 13):
+        steps = int(2 * math.pi * r * 2)
+        for i in range(steps):
+            a = i / steps * 2 * math.pi
+            x = int(cx + r * math.cos(a))
+            y = int(cy + r * math.sin(a))
+            if 0 <= x < S and 0 <= y < S and rng.random() < 0.85:
+                px[x, y] = PAL["chalk"]
+    # inner pentagram-ish star
+    pts = [(cx + int(11 * math.cos(a)), cy + int(11 * math.sin(a)))
+           for a in [(-90 + i * 144) * math.pi / 180 for i in range(5)]]
+    for i in range(5):
+        x0, y0 = pts[i]
+        x1, y1 = pts[(i + 1) % 5]
+        steps = max(abs(x1 - x0), abs(y1 - y0)) + 1
+        for s in range(steps):
+            x = int(x0 + (x1 - x0) * s / steps)
+            y = int(y0 + (y1 - y0) * s / steps)
+            if 0 <= x < S and 0 <= y < S and rng.random() < 0.9:
+                px[x, y] = PAL["chalk"]
+    # rune ticks around
+    for a in range(0, 360, 30):
+        x = int(cx + 15 * math.cos(a * math.pi / 180))
+        y = int(cy + 15 * math.sin(a * math.pi / 180))
+        if 0 <= x < S and 0 <= y < S:
+            px[x, y] = PAL["chalk"]
+    return img
+
+# --- Iron grate floor over darkness -----------------------------------------------------------
+def floor_grate(seed=307):
+    rng = random.Random(seed)
+    img = Image.new("RGB", (S, S), PAL["void"])
+    px = img.load()
+    for x in range(S):
+        for y in range(S):
+            bar = x % 6 in (0, 1) or y % 6 in (0, 1)
+            if bar:
+                c = PAL["iron_hl"] if (x % 6 == 0 and y % 3 == 0) else PAL["iron"]
+                noisy(px, x, y, c, rng, 4)
+            elif rng.random() < 0.03:
+                px[x, y] = (14, 14, 18)  # faint depth below
+    return img
+
+# --- Bloodstained flagstone ----------------------------------------------------------------------
+def floor_blood(seed=311):
+    img = stone_floor(seed)
+    rng = random.Random(seed + 1)
+    px = img.load()
+    # a dragged smear with droplets
+    y = rng.randint(8, 20)
+    for x in range(3, 29):
+        w = rng.randint(1, 3)
+        for dy in range(w):
+            r, g, b = px[x, (y + dy) % S]
+            c = PAL["blood"] if rng.random() < 0.7 else PAL["blood_dark"]
+            px[x, (y + dy) % S] = (min(255, (r + c[0] * 3) // 4), (g + c[1] * 3) // 4, (b + c[2] * 3) // 4)
+        y += rng.choice([-1, 0, 0, 1])
+    for _ in range(8):
+        dx, dy = rng.randint(2, 29), rng.randint(2, 29)
+        px[dx, dy] = PAL["blood_dark"]
+    return img
+
+# --- Haunted mirror (mansion) ------------------------------------------------------------------------
+def wall_mirror(seed=313):
+    img = wood_panel(seed)
+    rng = random.Random(seed + 1)
+    px = img.load()
+    # ornate oval frame
+    import math
+    cx, cy, ax, ay = 16, 15, 8, 11
+    for x in range(S):
+        for y in range(S):
+            e = ((x - cx) / ax) ** 2 + ((y - cy) / ay) ** 2
+            if 0.75 <= e <= 1.0:
+                px[x, y] = PAL["frame_gold"] if (x + y) % 2 else PAL["brass_hl"]
+            elif e < 0.75:
+                base = PAL["mirror_glass"]
+                # diagonal sheen
+                if (x - y) % 9 in (0, 1):
+                    base = PAL["mirror_hl"]
+                noisy(px, x, y, base, rng, 4)
+    # a pale smudge that shouldn't be there
+    for dx in range(-1, 2):
+        for dy in range(-2, 2):
+            if abs(dx) + abs(dy) < 3:
+                noisy(px, 13 + dx, 13 + dy, PAL["skin_pale"], rng, 12)
+    return img
+
 # --- Decor / item sprites (RGBA, transparent background) -------------------------------------------
 def _sprite():
     return Image.new("RGBA", (S, S), (0, 0, 0, 0))
@@ -1026,6 +1257,173 @@ def sprite_skull(seed=263):
         spr(px, cx + dx, cy + 3, PAL["bone"] if dx % 2 else PAL["bone_shadow"])
     return img
 
+def sprite_camera(seed=317):
+    img = _sprite()
+    px = img.load()
+    # bellows box camera: wooden body, leather bellows, brass lens
+    for x in range(8, 15):
+        for y in range(11, 21):
+            spr(px, x, y, PAL["wood_mid"] if (x + y) % 5 else PAL["wood_dark"])
+    for i, x in enumerate(range(15, 21)):  # bellows folds
+        for y in range(12, 20):
+            spr(px, x, y, PAL["velvet_deep"] if i % 2 else PAL["velvet_mid"])
+    for y in range(13, 19):  # lens board
+        spr(px, 21, y, PAL["wood_dark"])
+    for dy in range(-2, 3):  # brass lens
+        for dx in range(0, 3):
+            if abs(dy) + dx < 4:
+                spr(px, 22 + dx, 16 + dy, PAL["brass"] if dx < 2 else PAL["brass_hl"])
+    spr(px, 24, 16, PAL["glass_glow"])  # glint
+    spr(px, 11, 10, PAL["brass_hl"])    # shutter knob
+    for y in range(21, 26):  # tripod hint
+        spr(px, 11, y, PAL["iron"])
+        spr(px, 15, y, PAL["iron"])
+    return img
+
+def sprite_grimoire(seed=331):
+    rng = random.Random(seed)
+    img = _sprite()
+    px = img.load()
+    for x in range(9, 24):
+        for y in range(10, 24):
+            edge = x in (9, 23) or y in (10, 23)
+            c = PAL["velvet_deep"] if not edge else shade(PAL["velvet_deep"], 0.6)
+            spr(px, x, y, c)
+    for y in range(10, 24):  # spine
+        spr(px, 10, y, PAL["iron"])
+    # brass corners and clasp
+    for (cx, cy) in ((22, 11), (22, 22), (11, 11), (11, 22)):
+        spr(px, cx, cy, PAL["brass_hl"])
+    for y in range(15, 19):
+        spr(px, 23, y, PAL["brass"])
+    # embossed eye sigil
+    for dx in range(-2, 3):
+        spr(px, 16 + dx, 16, PAL["frame_gold"])
+    spr(px, 16, 15, PAL["frame_gold"])
+    spr(px, 16, 17, PAL["frame_gold"])
+    spr(px, 16, 16, PAL["glass_glow"])
+    return img
+
+def sprite_key(seed=337):
+    img = _sprite()
+    px = img.load()
+    # ornate bow (ring with trefoil)
+    import math
+    for a in range(0, 360, 12):
+        x = int(11 + 3.5 * math.cos(a * math.pi / 180))
+        y = int(12 + 3.5 * math.sin(a * math.pi / 180))
+        spr(px, x, y, PAL["brass"])
+    for (dx, dy) in ((0, -5), (-4, 3), (4, 3)):
+        spr(px, 11 + dx // 2, 12 + dy // 2, PAL["brass_hl"])
+    # shaft
+    for i in range(10):
+        spr(px, 14 + i, 15 + i // 2, PAL["brass"] if i % 2 else PAL["brass_hl"])
+    # wards
+    spr(px, 23, 21, PAL["brass"])
+    spr(px, 23, 22, PAL["brass"])
+    spr(px, 21, 22, PAL["brass"])
+    return img
+
+def sprite_potion(color_key, seed=347):
+    img = _sprite()
+    px = img.load()
+    cx = 16
+    spr(px, cx, 9, PAL["wood_dark"])
+    spr(px, cx, 10, PAL["wood_mid"])
+    for y in range(11, 14):
+        for dx in range(-1, 2):
+            spr(px, cx + dx, y, shade(PAL["glass_glow"], 0.8))
+    for y in range(14, 23):
+        half = 3 if y < 21 else 2
+        for dx in range(-half, half + 1):
+            liquid = y > 15
+            c = PAL[color_key] if liquid else shade(PAL["glass_glow"], 0.8)
+            if abs(dx) == half:
+                c = shade(c, 0.65)
+            spr(px, cx + dx, y, c)
+    spr(px, cx - 1, 16, shade(PAL[color_key], 1.5))  # glint
+    return img
+
+def sprite_gravestone(seed=353):
+    rng = random.Random(seed)
+    img = _sprite()
+    px = img.load()
+    for x in range(10, 23):
+        for y in range(10, 27):
+            arch = (x - 16) ** 2 // 6 + 10
+            if y >= arch:
+                edge = x in (10, 22) or y == 26 or y == arch
+                c = PAL["stone_light"] if not edge else PAL["stone_dark"]
+                spr(px, x, y, shade(c, 1.0 + rng.uniform(-0.08, 0.08)))
+    # engraved cross and lines
+    for y in range(13, 18):
+        spr(px, 16, y, PAL["stone_dark"])
+    for x in range(14, 19):
+        spr(px, x, 15, PAL["stone_dark"])
+    for x in range(13, 20):
+        spr(px, x, 20, PAL["stone_dark"])
+        if x % 2:
+            spr(px, x, 22, PAL["stone_dark"])
+    # moss at the base
+    for x in range(10, 23):
+        if rng.random() < 0.5:
+            spr(px, x, 26, PAL["moss"])
+    return img
+
+def sprite_urn(seed=359):
+    rng = random.Random(seed)
+    img = _sprite()
+    px = img.load()
+    cx = 16
+    profile = [2, 3, 4, 5, 5, 5, 4, 4, 3, 3, 2, 3, 4]
+    for i, half in enumerate(profile):
+        y = 10 + i
+        for dx in range(-half, half + 1):
+            c = PAL["terracotta"]
+            if dx == -half + 1:
+                c = shade(c, 1.25)
+            elif dx >= half - 1:
+                c = shade(c, 0.7)
+            spr(px, cx + dx, y, c)
+    # lid knob and band
+    spr(px, cx, 9, PAL["terracotta"])
+    for dx in range(-4, 5):
+        spr(px, cx + dx, 14, PAL["frame_gold"])
+    return img
+
+def sprite_clock(seed=367):
+    rng = random.Random(seed)
+    img = _sprite()
+    px = img.load()
+    # grandfather clock: tall case
+    for x in range(11, 22):
+        for y in range(3, 29):
+            edge = x in (11, 21) or y in (3, 28)
+            c = PAL["wood_mid"] if not edge else PAL["wood_dark"]
+            spr(px, x, y, shade(c, 1.0 + rng.uniform(-0.05, 0.05)))
+    # face
+    import math
+    for a in range(0, 360, 8):
+        x = int(16 + 3.5 * math.cos(a * math.pi / 180))
+        y = int(8 + 3.5 * math.sin(a * math.pi / 180))
+        spr(px, x, y, PAL["brass_hl"])
+    for dx in range(-2, 3):
+        for dy in range(-2, 3):
+            if dx * dx + dy * dy <= 6:
+                spr(px, 16 + dx, 8 + dy, PAL["cream"])
+    spr(px, 16, 8, PAL["iron"])
+    spr(px, 16, 7, PAL["iron"])      # hand at midnight
+    spr(px, 17, 8, PAL["iron"])
+    # pendulum window
+    for x in range(14, 19):
+        for y in range(14, 25):
+            spr(px, x, y, shade(PAL["void"], 1.0) if x in (14, 18) else PAL["marble_dark"])
+    for y in range(15, 21):
+        spr(px, 16, y, PAL["brass"])
+    for dx in range(-1, 2):
+        spr(px, 16 + dx, 21, PAL["brass_hl"])  # pendulum bob
+    return img
+
 # --- Output -----------------------------------------------------------------
 import os
 out = os.environ.get("OUT_DIR", ".")
@@ -1069,6 +1467,15 @@ tiles = {
     "floor_moss": floor_moss(),
     "ceiling_vault": ceiling_vault(),
     "ceiling_planks": ceiling_planks(),
+    "wall_curtain": wall_curtain(),
+    "wall_organ": wall_organ(),
+    "wall_apothecary": wall_apothecary(),
+    "wall_padded": wall_padded(),
+    "wall_asylum_tiles": wall_asylum_tiles(),
+    "wall_mirror": wall_mirror(),
+    "floor_ritual": floor_ritual(),
+    "floor_grate": floor_grate(),
+    "floor_blood": floor_blood(),
 }
 for name, img in tiles.items():
     img.save(f"{out}/{name}.png")
@@ -1081,16 +1488,24 @@ sprites = {
     "sprite_matchbox": sprite_matchbox(),
     "sprite_candelabrum": sprite_candelabrum(),
     "sprite_skull": sprite_skull(),
+    "sprite_camera": sprite_camera(),
+    "sprite_grimoire": sprite_grimoire(),
+    "sprite_key": sprite_key(),
+    "sprite_potion_red": sprite_potion("potion_red"),
+    "sprite_potion_green": sprite_potion("potion_green"),
+    "sprite_gravestone": sprite_gravestone(),
+    "sprite_urn": sprite_urn(),
+    "sprite_clock": sprite_clock(),
 }
 for name, img in sprites.items():
     img.save(f"{out}/{name}.png")
 
 # sprite preview: dark backdrop, 6x scale, one row
 sscale = 6
-srow = Image.new("RGB", (len(sprites) * (S * sscale + 10) - 10, S * sscale), (18, 18, 22))
+srow = Image.new("RGB", (7 * (S * sscale + 10) - 10, ((len(sprites) + 6) // 7) * (S * sscale + 10) - 10), (18, 18, 22))
 for idx, (name, img) in enumerate(sprites.items()):
     big = img.resize((S * sscale, S * sscale), Image.NEAREST)
-    srow.paste(big, (idx * (S * sscale + 10), 0), big)
+    srow.paste(big, ((idx % 7) * (S * sscale + 10), (idx // 7) * (S * sscale + 10)), big)
 srow.save(f"{out}/preview_sprites.png")
 
 # preview sheet: each tile 3x3 tiled, upscaled, arranged in a grid
