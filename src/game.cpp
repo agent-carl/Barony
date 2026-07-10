@@ -12,6 +12,7 @@
 #include "main.hpp"
 #include "identity.hpp"
 #include "dread.hpp"
+#include "lightfuel.hpp"
 #include "draw.hpp"
 #include "game.hpp"
 #include "stat.hpp"
@@ -988,6 +989,7 @@ void gameLogic(void)
 	}
 
 	dreadUpdate();
+	lightFuelUpdate();
 
 	int auto_appraise_lowest_time[MAXPLAYERS];
 	Item* auto_appraise_target[MAXPLAYERS];

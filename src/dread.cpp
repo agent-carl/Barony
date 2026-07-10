@@ -16,6 +16,7 @@
 #include "net.hpp"
 #include "mod_tools.hpp"
 #include "scores.hpp"
+#include "companion.hpp"
 #include "dread.hpp"
 
 // Tuning constants (candidates for ConsoleVariable once the values settle).
@@ -28,6 +29,8 @@ static const float DREAD_FALL_BRIGHT = 5.f;   // dread loss per second in bright
 static const float DREAD_MAX = 100.f;
 static const int DREAD_DAMAGE = 2;            // psychic damage at the highest stage
 static const int DREAD_DAMAGE_PERIOD = 3;     // seconds between damage ticks
+static const float DREAD_COMPANION_FACTOR = 0.75f; // rise multiplier with the companion nearby
+static const real_t DREAD_COMPANION_RANGE = 8 * 16.0; // "nearby" = within 8 tiles
 
 // Threshold stages. A message fires only when a stage is entered from below.
 enum DreadStage : int
@@ -51,6 +54,40 @@ static const char* DREAD_STAGE_MESSAGES[] = {
 static float dread[MAXPLAYERS] = { 0.f };
 static int dreadStage[MAXPLAYERS] = { DREAD_STAGE_CALM };
 static int dreadDamageCountdown[MAXPLAYERS] = { 0 };
+
+// A living companion close by steadies the nerves: dread rises slower.
+static bool companionIsNear(int player)
+{
+	if ( !stats[player] || !players[player] || !players[player]->entity )
+	{
+		return false;
+	}
+	for ( node_t* node = stats[player]->FOLLOWERS.first; node != nullptr; node = node->next )
+	{
+		Uint32* uid = (Uint32*)node->element;
+		Entity* follower = uid ? uidToEntity(*uid) : nullptr;
+		if ( !follower )
+		{
+			continue;
+		}
+		Stat* followerStats = follower->getStats();
+		if ( !followerStats || followerStats->HP <= 0 )
+		{
+			continue;
+		}
+		if ( followerStats->getAttribute(COMPANION_ATTRIBUTE) == "" )
+		{
+			continue;
+		}
+		const real_t dx = follower->x - players[player]->entity->x;
+		const real_t dy = follower->y - players[player]->entity->y;
+		if ( dx * dx + dy * dy <= DREAD_COMPANION_RANGE * DREAD_COMPANION_RANGE )
+		{
+			return true;
+		}
+	}
+	return false;
+}
 
 static int dreadStageForValue(float value)
 {
@@ -135,7 +172,12 @@ void dreadUpdate()
 		float& value = dread[i];
 		if ( light < DREAD_LIGHT_DARK )
 		{
-			value += DREAD_RISE_PER_SEC + DREAD_RISE_PER_5_FLOORS * (currentlevel / 5);
+			float rise = DREAD_RISE_PER_SEC + DREAD_RISE_PER_5_FLOORS * (currentlevel / 5);
+			if ( companionIsNear(i) )
+			{
+				rise *= DREAD_COMPANION_FACTOR;
+			}
+			value += rise;
 		}
 		else if ( light >= DREAD_LIGHT_BRIGHT )
 		{
