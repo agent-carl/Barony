@@ -125,6 +125,12 @@ void stalkerUpdate()
 					messagePlayer(i, MESSAGE_COMBAT, "The light sears the shadow!");
 				}
 			}
+			// the hearth is anathema: reaching a sanctuary banishes it
+			else if ( dreadNearSanctuary(i) )
+			{
+				stalkerStats->HP = 0;
+				messagePlayer(i, MESSAGE_HINT, "The shadow cannot abide the hearth.");
+			}
 			// the player found calm: it loses its grip and dissolves
 			else if ( dreadGet(i) < STALKER_DISSOLVE_DREAD )
 			{
@@ -133,7 +139,8 @@ void stalkerUpdate()
 			continue;
 		}
 
-		if ( stalkerCooldown[i] <= 0 && dreadGet(i) >= STALKER_SPAWN_DREAD )
+		if ( stalkerCooldown[i] <= 0 && dreadGet(i) >= STALKER_SPAWN_DREAD
+			&& !dreadNearSanctuary(i) )
 		{
 			stalkerSpawn(i);
 		}

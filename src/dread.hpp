@@ -37,6 +37,11 @@ void dreadDrawVignette(int player);
 // ('UMBD' packet) so client-side visuals can use it.
 void dreadClientSetValue(int player, float value);
 
+// True while the player stands in the warmth of a lit campfire
+// (sanctuary, idea #4 - built on the engine's actCampfire). Updated by
+// dreadUpdate's once-a-second tick; other systems (the stalker) read it.
+bool dreadNearSanctuary(int player);
+
 // Called after each map is populated (assignActions): zeroes dread on a
 // fresh run's start floor, halves it on ordinary level transitions.
 void dreadOnMapLoad();

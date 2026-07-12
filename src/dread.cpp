@@ -70,6 +70,59 @@ static bool scarred[MAXPLAYERS] = { false };
 static const float DREAD_GRIEF_FACTOR = 1.25f;
 static bool grieving[MAXPLAYERS] = { false };
 
+// Sanctuary (idea #4): a lit campfire's warmth calms nerves far faster
+// than mere light, and the umbral stalker cannot abide it.
+// Built on the engine's actCampfire (skill[3] = health, >0 while lit).
+static const real_t SANCTUARY_RANGE = 4 * 16.0; // 4 tiles
+static const float SANCTUARY_FALL_MULT = 3.f;
+static bool nearSanctuary[MAXPLAYERS] = { false };
+
+bool dreadNearSanctuary(int player)
+{
+	if ( player < 0 || player >= MAXPLAYERS )
+	{
+		return false;
+	}
+	return nearSanctuary[player];
+}
+
+static void sanctuaryRefresh()
+{
+	// one entity sweep per second for all players
+	std::vector<Entity*> campfires;
+	for ( node_t* node = map.entities ? map.entities->first : nullptr; node != nullptr; node = node->next )
+	{
+		Entity* entity = (Entity*)node->element;
+		if ( entity && entity->behavior == &actCampfire && entity->skill[3] > 0 )
+		{
+			campfires.push_back(entity);
+		}
+	}
+	for ( int i = 0; i < MAXPLAYERS; ++i )
+	{
+		const bool wasNear = nearSanctuary[i];
+		nearSanctuary[i] = false;
+		if ( client_disconnected[i] || !players[i] || !players[i]->entity )
+		{
+			continue;
+		}
+		for ( Entity* fire : campfires )
+		{
+			const real_t dx = fire->x - players[i]->entity->x;
+			const real_t dy = fire->y - players[i]->entity->y;
+			if ( dx * dx + dy * dy <= SANCTUARY_RANGE * SANCTUARY_RANGE )
+			{
+				nearSanctuary[i] = true;
+				break;
+			}
+		}
+		if ( nearSanctuary[i] && !wasNear && stats[i] && stats[i]->HP > 0 )
+		{
+			messagePlayer(i, MESSAGE_HINT, "The fire's warmth pushes back the dark.");
+		}
+	}
+}
+
 // Cursed equipment feeds the dark: each equipped item with negative
 // beatitude speeds up dread growth.
 static int cursedEquipmentCount(int player)
@@ -271,6 +324,8 @@ void dreadUpdate()
 		return;
 	}
 
+	sanctuaryRefresh();
+
 	for ( int i = 0; i < MAXPLAYERS; ++i )
 	{
 		if ( client_disconnected[i] || !players[i] || !players[i]->entity || !stats[i] )
@@ -306,6 +361,10 @@ void dreadUpdate()
 			if ( litAllyIsNear(i) )
 			{
 				fall += DREAD_LIGHT_CIRCLE_FALL;
+			}
+			if ( nearSanctuary[i] )
+			{
+				fall *= SANCTUARY_FALL_MULT; // the hearth heals what light alone cannot
 			}
 			if ( scarred[i] )
 			{
