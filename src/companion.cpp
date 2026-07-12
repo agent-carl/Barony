@@ -206,6 +206,30 @@ static const int OCCULTIST_MANA_PERIOD = 10; // seconds
 static int medicHealCooldown[MAXPLAYERS] = { 0 };
 static int occultistManaCountdown[MAXPLAYERS] = { 0 };
 
+// Trust (idea #10): time spent together (and care received) deepens the
+// bond - each tier steadies the player's nerves a little more and earns
+// a new line. Trust is per-run.
+static const int TRUST_SECONDS_PER_POINT = 60; // a point per minute together
+static const int TRUST_TIER1 = 3;              // ~3 minutes
+static const int TRUST_TIER2 = 6;              // ~6 minutes
+static const float TRUST_TIER_AURA_BONUS = 0.05f; // extra rise reduction per tier
+static int trust[MAXPLAYERS] = { 0 };
+static int trustAccumSeconds[MAXPLAYERS] = { 0 };
+static int trustTierAnnounced[MAXPLAYERS] = { 0 };
+
+static int trustTier(int player)
+{
+	if ( trust[player] >= TRUST_TIER2 )
+	{
+		return 2;
+	}
+	if ( trust[player] >= TRUST_TIER1 )
+	{
+		return 1;
+	}
+	return 0;
+}
+
 void companionOnMapLoad()
 {
 	if ( currentlevel == startfloor && !loadingsavegame )
@@ -217,6 +241,9 @@ void companionOnMapLoad()
 			barkedDread[i] = false;
 			barkDarknessCooldown[i] = 0;
 			barkWoundedCooldown[i] = 0;
+			trust[i] = 0;
+			trustAccumSeconds[i] = 0;
+			trustTierAnnounced[i] = 0;
 		}
 	}
 }
@@ -274,7 +301,9 @@ float companionDreadRiseFactor(int player)
 		return 1.f;
 	}
 	const CompanionRoleDef* def = companionRoleFromStats(companion->getStats());
-	return def ? def->dreadRiseFactor : 0.75f;
+	float factor = def ? def->dreadRiseFactor : 0.75f;
+	factor *= (1.f - TRUST_TIER_AURA_BONUS * trustTier(player)); // the bond steadies nerves
+	return factor;
 }
 
 void companionUpdate()
@@ -331,6 +360,21 @@ void companionUpdate()
 		const CompanionRoleDef* roleDef = companionRoleFromStats(companionStats);
 		const bool near = companionIsNearPlayer(i, companion);
 
+		// trust deepens with time spent together
+		if ( near && ++trustAccumSeconds[i] >= TRUST_SECONDS_PER_POINT )
+		{
+			trustAccumSeconds[i] = 0;
+			++trust[i];
+		}
+		const int tier = trustTier(i);
+		if ( tier > trustTierAnnounced[i] )
+		{
+			trustTierAnnounced[i] = tier;
+			bark(i, companionStats, tier == 1
+				? "I'm glad it's you down here with me, sir."
+				: "Whatever waits in that dark - we face it together.");
+		}
+
 		// role abilities
 		if ( medicHealCooldown[i] > 0 )
 		{
@@ -344,6 +388,7 @@ void companionUpdate()
 				{
 					medicHealCooldown[i] = MEDIC_HEAL_COOLDOWN;
 					players[i]->entity->modHP(MEDIC_HEAL_AMOUNT);
+					++trust[i]; // care received deepens the bond
 					bark(i, companionStats, "Hold still, sir. This will sting.");
 				}
 			}

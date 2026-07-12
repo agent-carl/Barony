@@ -17,15 +17,21 @@
 #include "net.hpp"
 #include "mod_tools.hpp"
 #include "prng.hpp"
+#include "interface/consolecommand.hpp"
 #include "dread.hpp"
 #include "stalker.hpp"
 
-static const float STALKER_SPAWN_DREAD = 100.f; // dread level that births a stalker
-static const float STALKER_DISSOLVE_DREAD = 25.f; // dread below this dissolves it
+// Tuning: live-adjustable in the console for playtests (/stalker_*).
+static ConsoleVariable<float> cvar_stalker_spawn_dread("/stalker_spawn_dread", 100.f);
+static ConsoleVariable<float> cvar_stalker_dissolve_dread("/stalker_dissolve_dread", 25.f);
+static ConsoleVariable<int> cvar_stalker_sear_damage("/stalker_sear_damage", 20);
+static ConsoleVariable<int> cvar_stalker_cooldown("/stalker_cooldown", 90);
+#define STALKER_SPAWN_DREAD (*cvar_stalker_spawn_dread)
+#define STALKER_DISSOLVE_DREAD (*cvar_stalker_dissolve_dread)
+#define STALKER_SEAR_DAMAGE (*cvar_stalker_sear_damage)
+#define STALKER_COOLDOWN_SECONDS (*cvar_stalker_cooldown)
 static const float STALKER_CATHARSIS_DREAD = 50.f; // dread cap after surviving one
 static const int STALKER_LIGHT_SEAR = 96;      // light level that burns the stalker
-static const int STALKER_SEAR_DAMAGE = 20;     // damage per second in bright light
-static const int STALKER_COOLDOWN_SECONDS = 90; // grace period between stalkers
 static const int STALKER_SPAWN_DISTANCE_TILES = 6;
 
 static Uint32 stalkerUid[MAXPLAYERS] = { 0 };

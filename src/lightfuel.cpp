@@ -16,13 +16,15 @@
 #include "player.hpp"
 #include "net.hpp"
 #include "mod_tools.hpp"
+#include "interface/consolecommand.hpp"
 #include "lightfuel.hpp"
 
 // Seconds of burning per one status stage (EXCELLENT -> ... -> BROKEN is
-// 4 stages, so a fresh torch lasts 4x this). Tuning constants; candidates
-// for ConsoleVariable once the values settle in playtests.
-static const int TORCH_SECONDS_PER_STAGE = 90;    // fresh torch ~6 minutes
-static const int LANTERN_SECONDS_PER_STAGE = 240; // fresh lantern ~16 minutes
+// 4 stages, so a fresh torch lasts 4x this). Live-adjustable for playtests.
+static ConsoleVariable<int> cvar_torch_stage_seconds("/torch_stage_seconds", 90);    // fresh torch ~6 min
+static ConsoleVariable<int> cvar_lantern_stage_seconds("/lantern_stage_seconds", 240); // fresh lantern ~16 min
+#define TORCH_SECONDS_PER_STAGE (*cvar_torch_stage_seconds)
+#define LANTERN_SECONDS_PER_STAGE (*cvar_lantern_stage_seconds)
 static const int SHIELD_SLOT_ARMORNUM = 4;        // degradeArmor slot id for shield
 
 static int burnProgress[MAXPLAYERS] = { 0 };

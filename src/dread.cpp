@@ -19,15 +19,21 @@
 #include "companion.hpp"
 #include "draw.hpp"
 #include "colors.hpp"
+#include "interface/consolecommand.hpp"
 #include "dread.hpp"
 
-// Tuning constants (candidates for ConsoleVariable once the values settle).
-static const int DREAD_LIGHT_DARK = 32;       // light level below this = darkness
-static const int DREAD_LIGHT_BRIGHT = 96;     // light level at or above this = safety
-static const float DREAD_RISE_PER_SEC = 3.f;  // dread gain per second in darkness
+// Tuning: live-adjustable in the console for playtests (/dread_*).
+static ConsoleVariable<int> cvar_dread_light_dark("/dread_light_dark", 32);     // below = darkness
+static ConsoleVariable<int> cvar_dread_light_bright("/dread_light_bright", 96); // at/above = safety
+static ConsoleVariable<float> cvar_dread_rise("/dread_rise", 3.f);              // gain per second in darkness
+static ConsoleVariable<float> cvar_dread_fall_dim("/dread_fall_dim", 1.f);      // loss per second in dim light
+static ConsoleVariable<float> cvar_dread_fall_bright("/dread_fall_bright", 5.f);// loss per second in bright light
+#define DREAD_LIGHT_DARK (*cvar_dread_light_dark)
+#define DREAD_LIGHT_BRIGHT (*cvar_dread_light_bright)
+#define DREAD_RISE_PER_SEC (*cvar_dread_rise)
+#define DREAD_FALL_DIM (*cvar_dread_fall_dim)
+#define DREAD_FALL_BRIGHT (*cvar_dread_fall_bright)
 static const float DREAD_RISE_PER_5_FLOORS = 1.f; // extra gain per 5 dungeon levels
-static const float DREAD_FALL_DIM = 1.f;      // dread loss per second in dim light
-static const float DREAD_FALL_BRIGHT = 5.f;   // dread loss per second in bright light
 static const float DREAD_MAX = 100.f;
 static const int DREAD_DAMAGE = 2;            // psychic damage at the highest stage
 static const int DREAD_DAMAGE_PERIOD = 3;     // seconds between damage ticks
