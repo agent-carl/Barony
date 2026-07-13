@@ -84,3 +84,4 @@ xcode/Barony/Barony.xcodeproj/xcuserdata/*
 /VS.2015/x64
 *.sqlite-journal
 __pycache__/
+build-win/

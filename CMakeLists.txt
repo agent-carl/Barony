@@ -311,13 +311,25 @@ if( NOT WIN32 )
 		set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_DEBUG} -mcpu=${ARCHITECTURE}")
 	endif()
 else( NOT WIN32 )
-	# These look like mingw to me?
-	set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -pg ${OPTIMIZATION_LEVEL} -ffast-math -funroll-loops -malign-double -fstrict-aliasing -mwindows")
-	set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${OPTIMIZATION_LEVEL} -ffast-math -funroll-loops -malign-double -fstrict-aliasing -mwindows")
-	# We should be using Visual Studio flags...or better yet, providing an option to select which you'd prefer.
-	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MP")
-	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MP ")
-	set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
+	if (CMAKE_COMPILER_IS_GNUCXX OR MINGW)
+		# Project Umbra: cross-compiling to Windows with MinGW-w64 (GCC).
+		# -fpermissive: the legacy code casts void* userdata to long; on
+		# Windows LLP64 long is 32-bit, so GCC errors on the (benign, small-
+		# index) truncation. Downgrade to a warning for the Windows build
+		# only - the Linux build stays strict.
+		set(UMBRA_MINGW_CXX "${OPTIMIZATION_LEVEL} -ffast-math -funroll-loops -fstrict-aliasing -fpermissive")
+		set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${OPTIMIZATION_LEVEL} -ffast-math -funroll-loops -fstrict-aliasing")
+		set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${OPTIMIZATION_LEVEL} -ffast-math -funroll-loops -fstrict-aliasing")
+		set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${UMBRA_MINGW_CXX}")
+		set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${UMBRA_MINGW_CXX}")
+		# -mwindows makes it a GUI subsystem app (no console window)
+		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mwindows")
+	else()
+		# Visual Studio / MSVC
+		set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MP")
+		set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MP ")
+		set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
+	endif()
   set (Windows 1)
 endif( NOT WIN32 )
 
@@ -627,9 +639,11 @@ if (GAME_ENABLED)
   endif()
   target_link_libraries(barony ${OPENGL_LIBRARIES})
   target_link_libraries(barony ${THREADS_LIBRARIES}) # TODO: Not sure what this is doing, since it doesn't appear to be working in Linux!
-  target_link_libraries(barony -lm) # TODO: In Visual Studio, I bet this is something else, right?
-  if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
-	  target_link_libraries(barony -lc)
+  if (NOT WIN32)
+	  target_link_libraries(barony -lm) # TODO: In Visual Studio, I bet this is something else, right?
+	  if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
+		  target_link_libraries(barony -lc)
+	  endif()
   endif()
   if (FMOD_FOUND)
     target_link_libraries(barony ${FMOD_LIBRARY})
@@ -645,6 +659,9 @@ if (GAME_ENABLED)
   # We need to link to Winsock if we're on Windows
   if(WIN32)
 	target_link_libraries(barony wsock32 ws2_32)
+	if (MINGW)
+		target_link_libraries(barony glew32 opengl32 glu32) # GLEW for the OpenGL loader
+	endif()
 	#target_link_libraries(barony -lpng -lfmodex) Mingw, not Visual Studio.
   endif()
   target_link_libraries(barony ${EXTRA_LIBS}) #Apple needs this for OpenGL to work.
@@ -738,9 +755,11 @@ if (EDITOR_ENABLED)
   endif()
   target_link_libraries(${EDITOR_EXE_NAME} ${OPENGL_LIBRARIES})
   target_link_libraries(${EDITOR_EXE_NAME} ${THREADS_LIBRARIES})
-  target_link_libraries(${EDITOR_EXE_NAME} -lm) # TODO: Only for Mingw?
-  if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
-	  target_link_libraries(${EDITOR_EXE_NAME} -lc)
+  if (NOT WIN32)
+	  target_link_libraries(${EDITOR_EXE_NAME} -lm) # TODO: Only for Mingw?
+	  if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
+		  target_link_libraries(${EDITOR_EXE_NAME} -lc)
+	  endif()
   endif()
   # We need to link to Winsock if we're on Windows
   if (FMOD_FOUND)
@@ -760,6 +779,9 @@ if (EDITOR_ENABLED)
   endif()
   if(WIN32)
 	target_link_libraries(${EDITOR_EXE_NAME} wsock32 ws2_32)
+	if (MINGW)
+		target_link_libraries(${EDITOR_EXE_NAME} glew32 opengl32 glu32)
+	endif()
   endif()
   if (APPLE)
 	if (FMOD_ENABLED)
